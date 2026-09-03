@@ -1,0 +1,63 @@
+/*
+ * Import file này vào CSS gốc của site (sau `@import "tailwindcss"`). Widget không tự dựng
+ * Tailwind riêng: nó mượn Tailwind của site, chỉ đăng ký thêm nguồn quét và bộ token màu.
+ */
+
+/* Class của widget nằm trong node_modules nên Tailwind không tự quét, phải khai báo tường minh. */
+@source "./**/*.{vue,ts}";
+
+@theme {
+  /* Đổi hai biến này ở site chủ là widget đổi theo màu thương hiệu của site đó. */
+  --color-chat-accent: #007dcc;
+  /* Nền đặc cho chữ trắng: #007DCC chỉ đạt 4.37:1, dưới ngưỡng WCAG AA. */
+  --color-chat-accent-strong: #00629f;
+}
+
+/* Tailwind bọc sẵn hover: trong @media (hover: hover) nên mọi nút chỉ hiện khi rê chuột đều
+   biến mất trên cảm ứng. */
+@custom-variant chat-touch (@media (hover: none));
+
+.gdtd-chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(0 0 0 / 0.12) transparent;
+}
+
+.gdtd-chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.gdtd-chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.gdtd-chat-scroll::-webkit-scrollbar-thumb {
+  background: rgb(0 0 0 / 0.12);
+  border-radius: 9999px;
+}
+
+.gdtd-chat-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.gdtd-chat-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ô nhập của widget phải thắng reset của Flowbite, thư viện mà cả ba site đang dùng. */
+.gdtd-chat-root textarea:focus,
+.gdtd-chat-root input:focus {
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gdtd-chat-root *,
+  .gdtd-chat-root *::before,
+  .gdtd-chat-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
