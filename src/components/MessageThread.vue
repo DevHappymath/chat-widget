@@ -8,6 +8,7 @@ import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const {
+  view,
   currentUserId,
   activeConversation,
   activeConversationId,
@@ -122,17 +123,28 @@ const onLoadOlder = async () => {
         </p>
       </div>
 
-      <button
-        v-if="activeConversation"
-        type="button"
-        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-gray-100"
-        :class="activeConversation.isMuted ? 'text-chat-accent-strong' : 'text-gray-500'"
-        :aria-label="activeConversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
-        :title="activeConversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
-        @click="toggleMute(activeConversation.id)"
-      >
-        <WidgetIcon :name="activeConversation.isMuted ? 'BellOff' : 'Bell'" :size="17" />
-      </button>
+      <template v-if="activeConversation">
+        <button
+          type="button"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-gray-100"
+          :class="activeConversation.isMuted ? 'text-chat-accent-strong' : 'text-gray-500'"
+          :aria-label="activeConversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
+          :title="activeConversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
+          @click="toggleMute(activeConversation.id)"
+        >
+          <WidgetIcon :name="activeConversation.isMuted ? 'BellOff' : 'Bell'" :size="17" />
+        </button>
+
+        <button
+          type="button"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100"
+          :aria-label="group ? 'Thông tin nhóm' : 'Thông tin hội thoại'"
+          :title="group ? 'Thông tin nhóm' : 'Thông tin hội thoại'"
+          @click="view = 'info'"
+        >
+          <WidgetIcon name="Info" :size="17" />
+        </button>
+      </template>
     </header>
 
     <div ref="scroller" class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3">

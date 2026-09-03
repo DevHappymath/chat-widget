@@ -6,7 +6,11 @@ không proxy REST qua BFF của site.
 
 Phạm vi bản này: bong bóng kèm badge chưa đọc, danh bạ, danh sách hội thoại, khung chat, gửi
 tin, đính kèm, trả lời, thả cảm xúc, sửa, thu hồi, nhắc tên trong nhóm, báo đang soạn tin,
-trạng thái online. Tạo nhóm và quản lý thành viên vẫn làm ở `chat.gdtd.vn`.
+trạng thái online. Nhóm: tạo nhóm, đổi tên và ảnh nhóm, thêm và xoá thành viên, rời nhóm.
+
+Panel đi theo kiểu một cột nhiều màn: danh sách hội thoại, danh bạ, tạo nhóm, khung chat,
+thông tin hội thoại, thêm thành viên. Mỗi màn có đúng một màn cha nên nút quay lại không cần
+giữ ngăn xếp (`PARENT_VIEW` trong `core/store/useChatStore.ts`).
 
 Hợp đồng API và event hub: xem `chat.gdtd.vn-be/docs/chat-widget-plan.md`.
 

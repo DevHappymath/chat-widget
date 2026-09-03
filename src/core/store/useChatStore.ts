@@ -16,6 +16,7 @@ import {
   type MessageReactionsChanged,
   type MessageSummary,
   type TypingSignal,
+  type UpdateGroupConversationCommand,
   type UploadedFile,
 } from "../../types/chat";
 import { extractErrorMessage } from "../../utils/error";
@@ -56,7 +57,23 @@ export interface DraftConversation {
   email?: string | null;
 }
 
-export type WidgetView = "list" | "contacts" | "thread";
+export type WidgetView =
+  | "list"
+  | "contacts"
+  | "new-group"
+  | "thread"
+  | "info"
+  | "add-members";
+
+/** Mỗi màn chỉ có đúng một màn cha, đủ để nút quay lại không cần giữ ngăn xếp. */
+const PARENT_VIEW: Record<WidgetView, WidgetView> = {
+  list: "list",
+  contacts: "list",
+  "new-group": "contacts",
+  thread: "list",
+  info: "thread",
+  "add-members": "info",
+};
 
 // ─── State: một bản duy nhất cho cả tab ───────────────────────────────────────
 
@@ -501,6 +518,15 @@ export const useChatStore = () => {
     cancelEditMessage();
   };
 
+  const goBack = () => {
+    if (view.value === "thread") {
+      backToList();
+      return;
+    }
+
+    view.value = PARENT_VIEW[view.value];
+  };
+
   const findDirectWith = (userId: string) =>
     conversations.value.find(
       (c) =>
@@ -659,6 +685,54 @@ export const useChatStore = () => {
     if (conversation) {
       updateSettings(conversationId, { isMuted: !conversation.isMuted });
     }
+  };
+
+  // ─── Nhóm ───────────────────────────────────────────────────────────────────
+  // Các hàm dưới đây để lỗi ném ra ngoài: màn hình gọi tới cần biết thất bại để giữ nguyên
+  // form và báo đúng thông điệp của backend.
+
+  const createGroupConversation = async (name: string, memberIds: string[]) => {
+    const res = await conversationApi.createGroup({ name, memberIds });
+    upsertConversation(res.data.data);
+    await selectConversation(res.data.data.id);
+
+    return res.data.data.id;
+  };
+
+  /**
+   * Chỉ quản trị nhóm gọi được. Backend bỏ qua field để trống nên không xoá được ảnh nhóm
+   * bằng đường này, chỉ thay bằng ảnh khác.
+   */
+  const updateGroupInfo = async (patch: UpdateGroupConversationCommand) => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId) return;
+
+    const res = await conversationApi.updateGroup(conversationId, patch);
+    upsertConversation(res.data.data);
+  };
+
+  /** Chỉ quản trị nhóm gọi được; backend chặn lại bằng LoadGroupForAdminAsync. */
+  const addParticipants = async (userIds: string[]) => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId || !userIds.length) return;
+
+    const res = await conversationApi.addParticipants(conversationId, { userIds });
+    upsertConversation(res.data.data);
+  };
+
+  /** Chỉ quản trị nhóm gọi được; người bị xoá vẫn nhận event để tự gỡ hội thoại. */
+  const removeParticipant = async (userId: string) => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId) return;
+
+    const res = await conversationApi.removeParticipant(conversationId, userId);
+    upsertConversation(res.data.data);
+  };
+
+  /** Gỡ khỏi danh sách ngay, không chờ event ParticipantsChanged quay về. */
+  const leaveConversation = async (conversationId: string) => {
+    await conversationApi.leave(conversationId);
+    removeConversation(conversationId);
   };
 
   const deleteMessage = async (messageId: string) => {
@@ -938,6 +1012,7 @@ export const useChatStore = () => {
     closePanel,
     togglePanel,
     backToList,
+    goBack,
     // dữ liệu
     conversations,
     filteredConversations,
@@ -993,5 +1068,10 @@ export const useChatStore = () => {
     togglePin,
     toggleMute,
     notifyTyping,
+    createGroupConversation,
+    updateGroupInfo,
+    addParticipants,
+    removeParticipant,
+    leaveConversation,
   };
 };

@@ -1,23 +1,37 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useChatStore } from "../core/store/useChatStore";
+import { useChatStore, type WidgetView } from "../core/store/useChatStore";
+import AddMembersScreen from "./AddMembersScreen.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import ContactPicker from "./ContactPicker.vue";
+import ConversationInfoScreen from "./ConversationInfoScreen.vue";
 import ConversationList from "./ConversationList.vue";
 import MessageThread from "./MessageThread.vue";
+import NewGroupScreen from "./NewGroupScreen.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 import WidgetToaster from "./WidgetToaster.vue";
 
-const { view, currentUserName, closePanel, backToList } = useChatStore();
+const { view, currentUserName, activeConversation, isGroup, closePanel, goBack } =
+  useChatStore();
 
-const HEADINGS: Record<string, string> = {
+const HEADINGS: Record<WidgetView, string> = {
   list: "Đoạn chat",
   contacts: "Tin nhắn mới",
+  "new-group": "Tạo nhóm mới",
   thread: "Đoạn chat",
+  info: "Thông tin",
+  "add-members": "Thêm thành viên",
 };
 
-const heading = computed(() => HEADINGS[view.value] ?? "Đoạn chat");
+const heading = computed(() => HEADINGS[view.value]);
 const showBack = computed(() => view.value !== "list");
+
+const subheading = computed(() => {
+  if (view.value === "list") return currentUserName.value;
+  if (!activeConversation.value) return "";
+
+  return isGroup(activeConversation.value) ? "Nhóm" : "Hội thoại riêng";
+});
 </script>
 
 <template>
@@ -33,15 +47,15 @@ const showBack = computed(() => view.value !== "list");
         v-if="showBack"
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
-        aria-label="Quay lại danh sách"
-        @click="backToList"
+        aria-label="Quay lại"
+        @click="goBack"
       >
         <WidgetIcon name="ArrowLeft" :size="18" />
       </button>
 
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-bold">{{ heading }}</p>
-        <p class="truncate text-[11px] text-white/75">{{ currentUserName }}</p>
+        <p v-if="subheading" class="truncate text-[11px] text-white/75">{{ subheading }}</p>
       </div>
 
       <button
@@ -67,6 +81,9 @@ const showBack = computed(() => view.value !== "list");
 
     <ConversationList v-if="view === 'list'" />
     <ContactPicker v-else-if="view === 'contacts'" />
+    <NewGroupScreen v-else-if="view === 'new-group'" />
+    <ConversationInfoScreen v-else-if="view === 'info'" />
+    <AddMembersScreen v-else-if="view === 'add-members'" />
     <MessageThread v-else />
 
     <WidgetToaster />

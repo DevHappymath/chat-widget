@@ -1,11 +1,13 @@
 import type { ApiEnvelope, PagedParams, PagedResult } from "../../types/api";
 import type {
+  AddParticipantsCommand,
   AppUser,
   ChatBootstrap,
   ChatConversation,
   ChatMessage,
   ConversationRead,
   CreateDirectConversationCommand,
+  CreateGroupConversationCommand,
   MarkConversationReadCommand,
   MessageHistory,
   MessageHistoryRequest,
@@ -13,6 +15,7 @@ import type {
   SendMessageCommand,
   SetMessageReactionCommand,
   UpdateConversationSettingsCommand,
+  UpdateGroupConversationCommand,
   UpdateMessageCommand,
   UploadedFile,
 } from "../../types/chat";
@@ -45,6 +48,22 @@ export const conversationApi = {
 
   createDirect: (command: CreateDirectConversationCommand) =>
     useHttp().post<ApiEnvelope<ChatConversation>>("/conversations/direct", command),
+
+  createGroup: (command: CreateGroupConversationCommand) =>
+    useHttp().post<ApiEnvelope<ChatConversation>>("/conversations/group", command),
+
+  updateGroup: (id: string, command: UpdateGroupConversationCommand) =>
+    useHttp().patch<ApiEnvelope<ChatConversation>>(`/conversations/${id}`, command),
+
+  addParticipants: (id: string, command: AddParticipantsCommand) =>
+    useHttp().post<ApiEnvelope<ChatConversation>>(`/conversations/${id}/members`, command),
+
+  removeParticipant: (id: string, userId: string) =>
+    useHttp().delete<ApiEnvelope<ChatConversation>>(
+      `/conversations/${id}/members/${userId}`,
+    ),
+
+  leave: (id: string) => useHttp().post<ApiEnvelope<null>>(`/conversations/${id}/leave`),
 
   updateSettings: (id: string, command: UpdateConversationSettingsCommand) =>
     useHttp().patch<ApiEnvelope<ChatConversation>>(

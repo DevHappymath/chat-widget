@@ -162,6 +162,22 @@ export interface CreateDirectConversationCommand {
   targetUserId: string;
 }
 
+export interface CreateGroupConversationCommand {
+  name: string;
+  avatarUrl?: string | null;
+  /** Không cần chứa người tạo; server tự thêm với vai trò Admin. Tối thiểu 2 người. */
+  memberIds: string[];
+}
+
+export interface UpdateGroupConversationCommand {
+  name?: string | null;
+  avatarUrl?: string | null;
+}
+
+export interface AddParticipantsCommand {
+  userIds: string[];
+}
+
 /** Cài đặt riêng của từng người; field bỏ trống là giữ nguyên. */
 export interface UpdateConversationSettingsCommand {
   isMuted?: boolean;
