@@ -26,14 +26,31 @@ Hợp đồng API và event hub: xem `chat.gdtd.vn-be/docs/chat-widget-plan.md`.
 ### 1. Thêm package
 
 ```bash
-npm i git+ssh://git@<host>/gdtd/chat-widget.git#v1.0.0
+npm i github:DevHappymath/chat-widget#v1.0.0
 ```
 
-Đang phát triển song song thì trỏ thẳng vào thư mục:
+Lệnh này ghi vào `package.json` và `package-lock.json`; **commit cả hai file**. Trong lock,
+`resolved` được chốt về đúng một commit SHA nên mọi lần build sau đó lấy lại đúng mã nguồn đó,
+kể cả khi tag bị dời.
+
+Nâng phiên bản: đổi tag trong `package.json` rồi chạy lại `npm i`.
+
+Đang phát triển song song thì trỏ thẳng vào thư mục, đừng commit dòng này:
 
 ```bash
 npm i file:../../chat.gdtd.vn/chat-widget
 ```
+
+**Image build phải có `git`.** `node:20-alpine` không kèm sẵn, mà npm cần `git` để đổi tag
+thành SHA, nên `npm ci` sẽ chết với `npm error syscall spawn git`. Sửa đúng một dòng trong
+`Dockerfile` của site:
+
+```dockerfile
+RUN apk add --no-cache libc6-compat git
+```
+
+Repo để public nên không cần secret hay khoá SSH: lock ghi `git+ssh://` nhưng npm tự lùi về
+HTTPS khi trong container không có khoá.
 
 ### 2. Cho Nuxt biên dịch mã nguồn của package
 
