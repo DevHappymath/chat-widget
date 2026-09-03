@@ -63,7 +63,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       chatApiBase:
-        process.env.NUXT_PUBLIC_CHAT_API_BASE || "http://localhost:5300/api",
+        process.env.NUXT_PUBLIC_CHAT_API_BASE || "http://localhost:7400/api",
     },
   },
 });

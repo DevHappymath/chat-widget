@@ -20,6 +20,10 @@
 .gdtd-chat-scroll {
   scrollbar-width: thin;
   scrollbar-color: rgb(0 0 0 / 0.12) transparent;
+  /* Cuộn hết danh sách là trang nền cuộn tiếp nếu không chặn, widget nổi trên trang khác nên
+     lối cuộn lây này rất khó chịu. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .gdtd-chat-scroll::-webkit-scrollbar {

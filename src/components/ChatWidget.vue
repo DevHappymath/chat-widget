@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { configureChatWidget, type ChatWidgetConfig } from "../core/config";
 import { useChatStore } from "../core/store/useChatStore";
+import { lockPageScroll, unlockPageScroll, useIsWideViewport } from "../core/viewport";
 import ChatPanel from "./ChatPanel.vue";
 import MessageActionSheet from "./MessageActionSheet.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -21,6 +22,17 @@ const {
   closePanel,
   refreshBadge,
 } = useChatStore();
+
+const isWide = useIsWideViewport();
+
+// Panel phủ toàn màn hình thì trang nền không được cuộn theo; ở desktop panel chỉ là một
+// khung nổi nên vẫn để người dùng cuộn trang bình thường.
+watch(
+  () => isPanelOpen.value && !isWide.value,
+  (shouldLock) => (shouldLock ? lockPageScroll() : unlockPageScroll()),
+);
+
+onBeforeUnmount(unlockPageScroll);
 
 const isLeft = computed(() => props.config.position === "bottom-left");
 
