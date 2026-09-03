@@ -1,6 +1,6 @@
 {
   "name": "@gdtd/chat-widget",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bong bóng chat dùng chung cho CRM, HRM, LMS - gọi thẳng chat service của GDTD",
   "type": "module",
   "license": "UNLICENSED",

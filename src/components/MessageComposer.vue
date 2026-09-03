@@ -320,7 +320,7 @@ defineExpose({ focus });
 
       <button
         type="button"
-        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-chat-accent-strong"
+        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-chat-accent-strong"
         aria-label="Đính kèm tệp"
         :title="`Đính kèm tệp, tối đa ${formatBytes(attachmentRule.maxSizeBytes, 0)} mỗi tệp`"
         @click="fileInput?.click()"
@@ -328,8 +328,10 @@ defineExpose({ focus });
         <WidgetIcon name="Paperclip" :size="18" />
       </button>
 
+      <!-- Viền vẽ bằng ring để không cộng vào chiều cao: ô nhập phải cao đúng bằng hai nút,
+           lệch vài px là icon nằm thấp hơn tâm ô nhập. -->
       <div
-        class="flex min-h-9 flex-1 items-center rounded-3xl border border-gray-200 bg-gray-50 px-3.5 transition-all focus-within:border-chat-accent focus-within:bg-white focus-within:ring-4 focus-within:ring-chat-accent/10"
+        class="flex min-h-10 flex-1 items-center rounded-3xl bg-gray-50 px-3.5 ring-1 ring-gray-200 transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-chat-accent"
       >
         <div class="relative w-full">
           <div
@@ -361,7 +363,7 @@ defineExpose({ focus });
 
       <button
         type="button"
-        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed"
+        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed"
         :class="
           canSend
             ? 'bg-chat-accent-strong text-white hover:brightness-110'
