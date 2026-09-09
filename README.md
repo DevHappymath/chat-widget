@@ -7,10 +7,13 @@ không proxy REST qua BFF của site.
 Phạm vi bản này: bong bóng kèm badge chưa đọc, danh bạ, danh sách hội thoại, khung chat, gửi
 tin, đính kèm, trả lời, thả cảm xúc, sửa, thu hồi, nhắc tên trong nhóm, báo đang soạn tin,
 trạng thái online. Nhóm: tạo nhóm, đổi tên và ảnh nhóm, thêm và xoá thành viên, rời nhóm.
+Tìm kiếm tin nhắn (trong một hội thoại và toàn cục), ghim tin, chuyển tiếp tin, kho ảnh và
+tệp của hội thoại.
 
 Panel đi theo kiểu một cột nhiều màn: danh sách hội thoại, danh bạ, tạo nhóm, khung chat,
-thông tin hội thoại, thêm thành viên. Mỗi màn có đúng một màn cha nên nút quay lại không cần
-giữ ngăn xếp (`PARENT_VIEW` trong `core/store/useChatStore.ts`).
+thông tin hội thoại, thêm thành viên, tìm tin nhắn, chuyển tiếp, ảnh và tệp. Mỗi màn có đúng
+một màn cha nên nút quay lại không cần giữ ngăn xếp (`PARENT_VIEW` trong
+`core/store/useChatStore.ts`).
 
 Hợp đồng API và event hub: xem `chat.gdtd.vn-be/docs/chat-widget-plan.md`.
 
@@ -161,6 +164,12 @@ lại; giữ cứng token là tab mở cả ngày sẽ mất kết nối vĩnh v
 - **URL tệp đính kèm phải tuyệt đối.** Backend đã ghép `App:PublicBaseUrl`; widget dùng nguyên
   văn `fileUrl`, không tự ghép tiền tố.
 - **Panel đóng thì tin mới vẫn tính là chưa đọc**, kể cả khi hội thoại đó đang được chọn.
+- **Tìm kiếm so trên chuỗi đã bỏ dấu ở backend**, nên `splitKeywordMatches` trong `utils/chat.ts`
+  cũng phải bỏ dấu; đổi cách chuẩn hoá một bên là kết quả ra mà không chỗ nào được tô sáng.
+- **Thu hồi tin gỡ ghim ngay ở backend nhưng chỉ phát `MessageDeleted`**, không phát thêm
+  `MessagePinChanged`; `syncPinnedList` là chỗ duy nhất gỡ tin khỏi thanh ghim.
+- **Nhảy tới một tin cũ kéo lùi tối đa 5 trang lịch sử** (`MAX_REVEAL_PAGES`) vì backend chưa có
+  endpoint lấy lịch sử quanh một tin.
 - Widget chỉ chạy phía client. Luôn bọc `<ClientOnly>`.
 
 ## Còn thiếu so với kế hoạch

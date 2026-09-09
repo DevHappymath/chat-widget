@@ -1,10 +1,12 @@
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import {
   FALLBACK_ALLOWED_EXTENSIONS,
   FALLBACK_MAX_ATTACHMENT_SIZE_BYTES,
 } from "../../constants/attachment";
+import { MAX_FORWARD_TARGETS, MIN_SEARCH_KEYWORD_LENGTH } from "../../constants/chat";
 import { HubEvent } from "../../constants/hub-event";
 import {
+  AttachmentKind,
   ConversationType,
   MessageType,
   ParticipantRole,
@@ -12,8 +14,11 @@ import {
   type ChatConversation,
   type ChatMessage,
   type ChatParticipant,
+  type ConversationAttachment,
   type ConversationRead,
+  type MessagePinChanged,
   type MessageReactionsChanged,
+  type MessageSearchItem,
   type MessageSummary,
   type TypingSignal,
   type UpdateGroupConversationCommand,
@@ -31,6 +36,16 @@ export type ConversationFilter = "all" | "unread" | "group";
 const TYPING_TTL_MS = 4000;
 
 const PAGE_SIZE = 30;
+
+const SEARCH_PAGE_SIZE = 20;
+
+const MEDIA_PAGE_SIZE = 30;
+
+/**
+ * Backend không có endpoint lấy lịch sử quanh một tin, nên nhảy tới kết quả tìm kiếm phải
+ * kéo lùi từng trang. Chặn số trang để một tin rất cũ không kéo cả hội thoại về máy.
+ */
+const MAX_REVEAL_PAGES = 5;
 
 /** Gộp các event dồn dập vào một lần gọi bootstrap để nắn lại số trên bong bóng. */
 const BADGE_REFRESH_DELAY_MS = 4000;
@@ -63,7 +78,10 @@ export type WidgetView =
   | "new-group"
   | "thread"
   | "info"
-  | "add-members";
+  | "add-members"
+  | "search"
+  | "forward"
+  | "media";
 
 /** Mỗi màn chỉ có đúng một màn cha, đủ để nút quay lại không cần giữ ngăn xếp. */
 const PARENT_VIEW: Record<WidgetView, WidgetView> = {
@@ -73,6 +91,9 @@ const PARENT_VIEW: Record<WidgetView, WidgetView> = {
   thread: "list",
   info: "thread",
   "add-members": "info",
+  search: "thread",
+  forward: "thread",
+  media: "info",
 };
 
 // ─── State: một bản duy nhất cho cả tab ───────────────────────────────────────
@@ -102,6 +123,26 @@ const highlightedMessageId = ref<string | null>(null);
 
 const filter = ref<ConversationFilter>("all");
 const keyword = ref("");
+
+const pinnedByConversation = ref<Record<string, ChatMessage[]>>({});
+const isPinnedBarExpanded = ref(false);
+
+const messageSearchKeyword = ref("");
+const messageSearchResults = ref<ChatMessage[]>([]);
+const messageSearchHasMore = ref(false);
+const isSearchingMessages = ref(false);
+
+const globalSearchResults = ref<MessageSearchItem[]>([]);
+const globalSearchTotal = ref(0);
+const globalSearchPage = ref(1);
+const isSearchingGlobal = ref(false);
+
+const forwardingMessage = ref<ChatMessage | null>(null);
+
+const mediaItems = ref<ConversationAttachment[]>([]);
+const mediaKind = ref<AttachmentKind | null>(null);
+const mediaHasMore = ref(false);
+const isLoadingMedia = ref(false);
 
 const isPanelOpen = ref(false);
 const view = ref<WidgetView>("list");
@@ -239,6 +280,22 @@ export const useChatStore = () => {
       : false,
   );
 
+  /** Mọi thành viên còn hoạt động đều ghim và gỡ được, kể cả tin của người khác. */
+  const canPinMessage = (message: ChatMessage) =>
+    !message.isDeleted &&
+    message.type !== MessageType.System &&
+    !isLocalMessage(message);
+
+  const canForwardMessage = canPinMessage;
+
+  const pinnedMessages = computed(() =>
+    activeConversationId.value
+      ? (pinnedByConversation.value[activeConversationId.value] ?? [])
+      : [],
+  );
+
+  const isPinned = (message: ChatMessage) => Boolean(message.pinnedAtUtc);
+
   /** Panel đóng thì tin mới vẫn phải tính là chưa đọc, dù hội thoại đó đang được chọn. */
   const isThreadVisible = computed(() => isPanelOpen.value && view.value === "thread");
 
@@ -360,9 +417,29 @@ export const useChatStore = () => {
     );
   };
 
+  /**
+   * Thay tin trong thanh ghim, hoặc gỡ hẳn khi tin bị thu hồi: backend gỡ ghim ngay trong
+   * DeleteAsync nhưng chỉ phát MessageDeleted, không phát thêm MessagePinChanged.
+   */
+  const syncPinnedList = (message: ChatMessage) => {
+    const list = pinnedByConversation.value[message.conversationId];
+    if (!list) return;
+
+    const index = list.findIndex((m) => m.id === message.id);
+
+    if (!message.pinnedAtUtc || message.isDeleted) {
+      if (index >= 0) list.splice(index, 1);
+      return;
+    }
+
+    if (index >= 0) list.splice(index, 1, message);
+    else list.unshift(message);
+  };
+
   /** Sửa hoặc thu hồi tin cuối phải kéo theo dòng preview trong danh sách hội thoại. */
   const applyMessageChange = (message: ChatMessage) => {
     upsertMessage(message);
+    syncPinnedList(message);
 
     const conversation = findConversation(message.conversationId);
     if (conversation?.lastMessage?.id === message.id) {
@@ -475,6 +552,15 @@ export const useChatStore = () => {
     if (oldest) await loadMessages(conversationId, oldest);
   };
 
+  const loadPinnedMessages = async (conversationId: string) => {
+    try {
+      const res = await messageApi.getPinned(conversationId);
+      pinnedByConversation.value[conversationId] = res.data.data ?? [];
+    } catch (err) {
+      console.error("[chat-widget] loadPinnedMessages:", err);
+    }
+  };
+
   const markRead = async (conversationId: string) => {
     const conversation = findConversation(conversationId);
     if (!conversation || conversation.lastSequence <= conversation.lastReadSequence) {
@@ -500,14 +586,17 @@ export const useChatStore = () => {
     draft.value = null;
     cancelEditMessage();
     cancelReply();
+    resetMessageSearch();
+    resetMedia();
     activeConversationId.value = id;
     view.value = "thread";
+    isPinnedBarExpanded.value = false;
 
     if (!messagesByConversation.value[id]) {
       await loadMessages(id);
     }
 
-    await markRead(id);
+    await Promise.all([markRead(id), loadPinnedMessages(id)]);
   };
 
   const backToList = () => {
@@ -523,6 +612,10 @@ export const useChatStore = () => {
       backToList();
       return;
     }
+
+    // Rời màn chuyển tiếp là bỏ luôn tin đang chọn, mở lại từ tin khác không dính tin cũ.
+    if (view.value === "forward") forwardingMessage.value = null;
+    if (view.value === "search") resetMessageSearch();
 
     view.value = PARENT_VIEW[view.value];
   };
@@ -615,12 +708,17 @@ export const useChatStore = () => {
       content: body,
       clientMessageId,
       replyTo: replyingTo.value ? toMessageSummary(replyingTo.value) : null,
+      // Giữ nguyên kích thước và thumbnail của lượt upload, nếu không bong bóng lạc quan
+      // không có khung ảnh rồi giật một nhịp khi tin thật về.
       attachments: attachments.map((file, index) => ({
         id: `${clientMessageId}-${index}`,
         fileName: file.fileName,
         fileUrl: file.fileUrl,
         contentType: file.contentType,
         sizeBytes: file.sizeBytes,
+        width: file.width,
+        height: file.height,
+        thumbnailUrl: file.thumbnailUrl,
       })),
       reactions: [],
       mentionedUserIds,
@@ -766,6 +864,201 @@ export const useChatStore = () => {
     }, 1600);
   };
 
+  // ─── Ghim tin nhắn ──────────────────────────────────────────────────────────
+
+  /** Áp payload của event MessagePinChanged: cập nhật cả lịch sử lẫn thanh ghim. */
+  const applyPinChanged = (payload: MessagePinChanged) => {
+    upsertMessage(payload.message);
+    syncPinnedList(payload.message);
+  };
+
+  const togglePinMessage = async (message: ChatMessage) => {
+    try {
+      const res = isPinned(message)
+        ? await messageApi.unpin(message.id)
+        : await messageApi.pin(message.id);
+
+      applyPinChanged(res.data.data);
+      toast.success(res.data.data.isPinned ? "Đã ghim tin nhắn" : "Đã bỏ ghim tin nhắn");
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    }
+  };
+
+  // ─── Chuyển tiếp tin nhắn ───────────────────────────────────────────────────
+
+  const openForward = (message: ChatMessage) => {
+    forwardingMessage.value = message;
+    view.value = "forward";
+  };
+
+  /**
+   * Mỗi đích một `clientMessageId` riêng: để server tự sinh thì bấm chuyển tiếp hai lần vì
+   * mạng chậm sẽ ra hai tin ở mỗi nhóm. Lỗi ném ra ngoài để màn hình giữ nguyên lựa chọn.
+   */
+  const forwardMessage = async (conversationIds: string[]) => {
+    const message = forwardingMessage.value;
+    if (!message || !conversationIds.length) return 0;
+
+    const targets = conversationIds
+      .slice(0, MAX_FORWARD_TARGETS)
+      .map((conversationId) => ({
+        conversationId,
+        clientMessageId: crypto.randomUUID(),
+      }));
+
+    const res = await messageApi.forward(message.id, { targets });
+
+    // Hội thoại đang mở nhận tin qua hub, các hội thoại khác chỉ cần dòng preview mới.
+    for (const forwarded of res.data.data ?? []) {
+      applyIncomingMessage(forwarded);
+    }
+
+    forwardingMessage.value = null;
+    return targets.length;
+  };
+
+  // ─── Tìm kiếm tin nhắn ──────────────────────────────────────────────────────
+
+  function resetMessageSearch() {
+    messageSearchKeyword.value = "";
+    messageSearchResults.value = [];
+    messageSearchHasMore.value = false;
+  }
+
+  const searchMessages = async (beforeSequence?: number) => {
+    const conversationId = activeConversationId.value;
+    const trimmed = messageSearchKeyword.value.trim();
+
+    if (!conversationId || trimmed.length < MIN_SEARCH_KEYWORD_LENGTH) {
+      messageSearchResults.value = [];
+      messageSearchHasMore.value = false;
+      return;
+    }
+
+    isSearchingMessages.value = true;
+    try {
+      const res = await messageApi.search(conversationId, {
+        keyword: trimmed,
+        beforeSequence,
+        limit: SEARCH_PAGE_SIZE,
+      });
+
+      const batch = res.data.data.items ?? [];
+      messageSearchResults.value = beforeSequence
+        ? [...messageSearchResults.value, ...batch]
+        : batch;
+      messageSearchHasMore.value = res.data.data.hasMore;
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      isSearchingMessages.value = false;
+    }
+  };
+
+  const loadMoreSearchResults = () => {
+    if (!messageSearchHasMore.value || isSearchingMessages.value) return;
+
+    const oldest = messageSearchResults.value.at(-1)?.sequence;
+    if (oldest) searchMessages(oldest);
+  };
+
+  const searchAllMessages = async (pageNumber = 1) => {
+    const trimmed = keyword.value.trim();
+
+    if (trimmed.length < MIN_SEARCH_KEYWORD_LENGTH) {
+      globalSearchResults.value = [];
+      globalSearchTotal.value = 0;
+      return;
+    }
+
+    isSearchingGlobal.value = true;
+    try {
+      const res = await messageApi.searchAll({
+        keyword: trimmed,
+        pageNumber,
+        pageSize: SEARCH_PAGE_SIZE,
+      });
+
+      globalSearchResults.value = res.data.data.items ?? [];
+      globalSearchTotal.value = res.data.data.totalCount;
+      globalSearchPage.value = pageNumber;
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      isSearchingGlobal.value = false;
+    }
+  };
+
+  // ─── Kho media ──────────────────────────────────────────────────────────────
+
+  function resetMedia() {
+    mediaItems.value = [];
+    mediaHasMore.value = false;
+  }
+
+  const loadMedia = async (beforeSequence?: number) => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId || isLoadingMedia.value) return;
+
+    isLoadingMedia.value = true;
+    try {
+      const res = await messageApi.getAttachments(conversationId, {
+        kind: mediaKind.value,
+        beforeSequence,
+        limit: MEDIA_PAGE_SIZE,
+      });
+
+      const batch = res.data.data.items ?? [];
+      mediaItems.value = beforeSequence ? [...mediaItems.value, ...batch] : batch;
+      mediaHasMore.value = res.data.data.hasMore;
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      isLoadingMedia.value = false;
+    }
+  };
+
+  const loadMoreMedia = () => {
+    if (!mediaHasMore.value) return;
+
+    const oldest = mediaItems.value.at(-1)?.sequence;
+    if (oldest) loadMedia(oldest);
+  };
+
+  const setMediaKind = async (kind: AttachmentKind | null) => {
+    mediaKind.value = kind;
+    resetMedia();
+    await loadMedia();
+  };
+
+  /**
+   * Mở đúng tin nhắn từ thanh ghim, kho media hoặc kết quả tìm kiếm. Tin nằm ngoài phần đã
+   * tải thì kéo lùi lịch sử tối đa `MAX_REVEAL_PAGES` trang rồi mới cuộn tới.
+   */
+  const revealMessage = async (conversationId: string, messageId: string) => {
+    if (activeConversationId.value !== conversationId) {
+      await selectConversation(conversationId);
+    } else {
+      view.value = "thread";
+    }
+
+    const isLoaded = () =>
+      messagesByConversation.value[conversationId]?.some((m) => m.id === messageId);
+
+    for (let page = 0; page < MAX_REVEAL_PAGES && !isLoaded(); page++) {
+      if (!hasMoreByConversation.value[conversationId]) break;
+
+      const oldest = messagesByConversation.value[conversationId]?.[0]?.sequence;
+      if (!oldest) break;
+
+      await loadMessages(conversationId, oldest);
+    }
+
+    await nextTick();
+    jumpToMessage(messageId);
+  };
+
   const openMessageActions = (
     message: ChatMessage,
     anchor: MessageActionAnchor,
@@ -871,6 +1164,9 @@ export const useChatStore = () => {
     onHubEvent(HubEvent.ReactionChanged, (payload: MessageReactionsChanged) =>
       applyReactions(payload),
     );
+    onHubEvent(HubEvent.MessagePinChanged, (payload: MessagePinChanged) =>
+      applyPinChanged(payload),
+    );
 
     onHubEvent(HubEvent.ConversationCreated, (payload: ChatConversation) =>
       upsertConversation(payload),
@@ -941,7 +1237,10 @@ export const useChatStore = () => {
     onHubReconnected(async () => {
       await refreshBadge();
       if (conversationsLoaded.value) await loadConversations();
-      if (activeConversationId.value) await loadMessages(activeConversationId.value);
+      if (activeConversationId.value) {
+        await loadMessages(activeConversationId.value);
+        await loadPinnedMessages(activeConversationId.value);
+      }
     });
   };
 
@@ -1035,6 +1334,21 @@ export const useChatStore = () => {
     actionSheetAnchor,
     highlightedMessageId,
     isGroupAdmin,
+    pinnedMessages,
+    isPinnedBarExpanded,
+    messageSearchKeyword,
+    messageSearchResults,
+    messageSearchHasMore,
+    isSearchingMessages,
+    globalSearchResults,
+    globalSearchTotal,
+    globalSearchPage,
+    isSearchingGlobal,
+    forwardingMessage,
+    mediaItems,
+    mediaKind,
+    mediaHasMore,
+    isLoadingMedia,
     // helpers
     isGroup,
     titleOf,
@@ -1043,6 +1357,9 @@ export const useChatStore = () => {
     isOwnMessage,
     canEditMessage,
     canDeleteMessage,
+    canPinMessage,
+    canForwardMessage,
+    isPinned,
     typingUserIdsOf,
     myReactionOf,
     isOnline: presence.isOnline,
@@ -1059,6 +1376,18 @@ export const useChatStore = () => {
     startReply,
     cancelReply,
     jumpToMessage,
+    revealMessage,
+    loadPinnedMessages,
+    togglePinMessage,
+    openForward,
+    forwardMessage,
+    resetMessageSearch,
+    searchMessages,
+    loadMoreSearchResults,
+    searchAllMessages,
+    loadMedia,
+    loadMoreMedia,
+    setMediaKind,
     openMessageActions,
     closeMessageActions,
     toggleReaction,

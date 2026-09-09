@@ -19,6 +19,11 @@ const {
   toggleReaction,
   myReactionOf,
   deleteMessage,
+  canPinMessage,
+  canForwardMessage,
+  isPinned,
+  togglePinMessage,
+  openForward,
 } = useChatStore();
 
 const { ask } = useWidgetConfirm();
@@ -68,6 +73,24 @@ const actions = computed<SheetAction[]>(() => {
         await navigator.clipboard.writeText(message.content!);
         toast.success("Đã sao chép nội dung tin nhắn");
       },
+    });
+  }
+
+  if (canForwardMessage(message)) {
+    items.push({
+      key: "forward",
+      label: "Chuyển tiếp",
+      icon: "Forward",
+      run: () => openForward(message),
+    });
+  }
+
+  if (canPinMessage(message)) {
+    items.push({
+      key: "pin",
+      label: isPinned(message) ? "Bỏ ghim tin nhắn" : "Ghim tin nhắn",
+      icon: isPinned(message) ? "PinOff" : "Pin",
+      run: () => togglePinMessage(message),
     });
   }
 

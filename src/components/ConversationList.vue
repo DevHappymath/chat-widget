@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useChatStore, type ConversationFilter } from "../core/store/useChatStore";
 import { debounce } from "../utils/debounce";
 import ConversationRow from "./ConversationRow.vue";
+import GlobalSearchResults from "./GlobalSearchResults.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const {
@@ -31,6 +32,22 @@ const tabs = computed<{ value: ConversationFilter; label: string; badge?: number
   ],
 );
 
+/** Chỉ hiện khi đang gõ từ khoá: không có từ khoá thì "tìm tin nhắn" không có gì để tìm. */
+type SearchScope = "conversations" | "messages";
+
+const searchScope = ref<SearchScope>("conversations");
+
+const isSearching = computed(() => Boolean(keyword.value.trim()));
+
+watch(isSearching, (searching) => {
+  if (!searching) searchScope.value = "conversations";
+});
+
+const searchScopes: { value: SearchScope; label: string }[] = [
+  { value: "conversations", label: "Hội thoại" },
+  { value: "messages", label: "Tin nhắn" },
+];
+
 const emptyHint = computed(() => {
   if (keyword.value.trim()) return "Không có hội thoại nào khớp từ khoá đang tìm.";
   if (filter.value === "unread") return "Bạn đã đọc hết tin nhắn.";
@@ -56,7 +73,24 @@ const emptyHint = computed(() => {
         />
       </div>
 
-      <nav class="mt-2 flex gap-1">
+      <nav v-if="isSearching" class="mt-2 flex gap-1 rounded-full bg-gray-100 p-0.5">
+        <button
+          v-for="scope in searchScopes"
+          :key="scope.value"
+          type="button"
+          class="flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors"
+          :class="
+            searchScope === scope.value
+              ? 'bg-white text-chat-accent-strong shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          "
+          @click="searchScope = scope.value"
+        >
+          {{ scope.label }}
+        </button>
+      </nav>
+
+      <nav v-else class="mt-2 flex gap-1">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -76,7 +110,9 @@ const emptyHint = computed(() => {
     </div>
 
     <div class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto">
-      <div v-if="isLoadingConversations && !filteredConversations.length">
+      <GlobalSearchResults v-if="isSearching && searchScope === 'messages'" />
+
+      <div v-else-if="isLoadingConversations && !filteredConversations.length">
         <div
           v-for="index in 6"
           :key="index"

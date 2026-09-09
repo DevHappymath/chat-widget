@@ -5,13 +5,20 @@ import type {
   ChatBootstrap,
   ChatConversation,
   ChatMessage,
+  ConversationAttachmentList,
+  ConversationAttachmentRequest,
   ConversationRead,
   CreateDirectConversationCommand,
   CreateGroupConversationCommand,
+  ForwardMessageCommand,
   MarkConversationReadCommand,
   MessageHistory,
   MessageHistoryRequest,
+  MessagePinChanged,
   MessageReactionsChanged,
+  MessageSearchItem,
+  MessageSearchRequest,
+  MessageSearchResponse,
   SendMessageCommand,
   SetMessageReactionCommand,
   UpdateConversationSettingsCommand,
@@ -112,6 +119,59 @@ export const messageApi = {
 
   removeReaction: (id: string) =>
     useHttp().delete<ApiEnvelope<MessageReactionsChanged>>(`/messages/${id}/reactions`),
+
+  /** Tìm trong một hội thoại; keyset theo `sequence` để cuộn liền mạch với lịch sử. */
+  search: (conversationId: string, request: MessageSearchRequest) =>
+    useHttp().get<ApiEnvelope<MessageSearchResponse>>(
+      `/conversations/${conversationId}/messages/search`,
+      {
+        params: {
+          Keyword: request.keyword,
+          BeforeSequence: request.beforeSequence ?? undefined,
+          Limit: request.limit ?? 20,
+        },
+      },
+    ),
+
+  /**
+   * Tìm trên mọi hội thoại mình còn là thành viên. Phân trang offset chứ không keyset:
+   * kết quả tìm kiếm là một ảnh chụp, không phải danh sách đang chảy như lịch sử.
+   */
+  searchAll: (params: PagedParams) =>
+    useHttp().get<PagedResult<MessageSearchItem>>("/messages/search", {
+      params: {
+        Keyword: params.keyword ?? "",
+        PageNumber: params.pageNumber ?? 1,
+        PageSize: params.pageSize ?? 20,
+      },
+    }),
+
+  getPinned: (conversationId: string) =>
+    useHttp().get<ApiEnvelope<ChatMessage[]>>(
+      `/conversations/${conversationId}/pinned-messages`,
+    ),
+
+  pin: (id: string) =>
+    useHttp().post<ApiEnvelope<MessagePinChanged>>(`/messages/${id}/pin`),
+
+  unpin: (id: string) =>
+    useHttp().delete<ApiEnvelope<MessagePinChanged>>(`/messages/${id}/pin`),
+
+  /** Trả về đúng một tin cho mỗi đích, theo thứ tự `targets` đã gửi lên. */
+  forward: (id: string, command: ForwardMessageCommand) =>
+    useHttp().post<ApiEnvelope<ChatMessage[]>>(`/messages/${id}/forward`, command),
+
+  getAttachments: (conversationId: string, request: ConversationAttachmentRequest = {}) =>
+    useHttp().get<ApiEnvelope<ConversationAttachmentList>>(
+      `/conversations/${conversationId}/attachments`,
+      {
+        params: {
+          Kind: request.kind ?? undefined,
+          BeforeSequence: request.beforeSequence ?? undefined,
+          Limit: request.limit ?? 30,
+        },
+      },
+    ),
 };
 
 /** Tệp được upload trước, rồi mới gắn `fileUrl` vào tin nhắn. */

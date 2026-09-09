@@ -24,6 +24,14 @@ export const ParticipantRole = {
 export type ParticipantRole =
   (typeof ParticipantRole)[keyof typeof ParticipantRole];
 
+/** Bộ lọc của kho media; backend suy ra từ ContentType chứ không lưu trong DB. */
+export const AttachmentKind = {
+  Image: 1,
+  File: 2,
+} as const;
+export type AttachmentKind =
+  (typeof AttachmentKind)[keyof typeof AttachmentKind];
+
 // ─── Responses ────────────────────────────────────────────────────────────────
 
 export interface ChatParticipant {
@@ -69,6 +77,10 @@ export interface UploadedFile {
   contentType: string;
   sizeBytes: number;
   isImage: boolean;
+  width?: number | null;
+  height?: number | null;
+  /** Null khi tệp không phải ảnh, hoặc ảnh nhỏ hơn 320px nên dùng thẳng bản gốc. */
+  thumbnailUrl?: string | null;
 }
 
 /** Bản rút gọn của tin được trả lời, chỉ đủ dựng khối trích dẫn. */
@@ -96,6 +108,10 @@ export interface ChatMessage {
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
   mentionedUserIds: string[];
+  /** Có giá trị khi đây là tin chuyển tiếp: id người gửi tin gốc. */
+  forwardedFromUserId?: string | null;
+  pinnedAtUtc?: string | null;
+  pinnedByUserId?: string | null;
   isDeleted: boolean;
   deletedAtUtc?: string | null;
   editedAtUtc?: string | null;
@@ -221,6 +237,77 @@ export interface MessageHistoryRequest {
   beforeSequence?: number | null;
   /** Backend chặn trong khoảng 1 đến 100. */
   limit?: number;
+}
+
+// ─── Tìm kiếm tin nhắn ────────────────────────────────────────────────────────
+
+export interface MessageSearchRequest {
+  keyword: string;
+  /** Lấy các kết quả cũ hơn mốc này; bỏ trống là lấy từ tin mới nhất. */
+  beforeSequence?: number | null;
+  limit?: number;
+}
+
+/** Tìm trong một hội thoại: phân trang keyset giống lịch sử tin nhắn. */
+export interface MessageSearchResponse {
+  /** Sequence giảm dần - kết quả mới nhất đứng đầu. */
+  items: ChatMessage[];
+  hasMore: boolean;
+  oldestSequence?: number | null;
+}
+
+/** Một dòng kết quả tìm toàn cục, kèm tên hội thoại để biết tin nằm ở đâu. */
+export interface MessageSearchItem {
+  conversationId: string;
+  conversationType: ConversationType;
+  conversationName?: string | null;
+  message: ChatMessage;
+}
+
+// ─── Ghim tin nhắn ────────────────────────────────────────────────────────────
+
+/** Payload của event MessagePinChanged, kèm luôn tin đầy đủ để dựng thanh ghim. */
+export interface MessagePinChanged {
+  conversationId: string;
+  messageId: string;
+  isPinned: boolean;
+  message: ChatMessage;
+}
+
+// ─── Chuyển tiếp tin nhắn ─────────────────────────────────────────────────────
+
+export interface ForwardTarget {
+  conversationId: string;
+  /** Mỗi đích một id riêng do client sinh; bấm hai lần vì mạng chậm không ra hai tin. */
+  clientMessageId: string;
+}
+
+export interface ForwardMessageCommand {
+  targets: ForwardTarget[];
+}
+
+// ─── Kho media của hội thoại ──────────────────────────────────────────────────
+
+export interface ConversationAttachmentRequest {
+  /** Bỏ trống là lấy cả ảnh lẫn tệp. */
+  kind?: AttachmentKind | null;
+  beforeSequence?: number | null;
+  limit?: number;
+}
+
+export interface ConversationAttachment {
+  messageId: string;
+  sequence: number;
+  senderId: string;
+  senderName?: string | null;
+  createdAtUtc: string;
+  attachment: MessageAttachment;
+}
+
+export interface ConversationAttachmentList {
+  items: ConversationAttachment[];
+  hasMore: boolean;
+  oldestSequence?: number | null;
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────

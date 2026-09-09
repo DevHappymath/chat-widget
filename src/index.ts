@@ -17,8 +17,22 @@ export type {
   ChatConversation,
   ChatMessage,
   ChatParticipant,
+  ConversationAttachment,
+  ConversationAttachmentList,
   MessageAttachment,
+  MessagePinChanged,
   MessageReaction,
+  MessageSearchItem,
+  MessageSearchResponse,
   UploadedFile,
 } from "./types/chat";
-export { ConversationType, MessageType, ParticipantRole } from "./types/chat";
+export {
+  AttachmentKind,
+  ConversationType,
+  MessageType,
+  ParticipantRole,
+} from "./types/chat";
+export {
+  MAX_FORWARD_TARGETS,
+  MAX_PINNED_PER_CONVERSATION,
+} from "./constants/chat";

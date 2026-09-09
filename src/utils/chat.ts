@@ -187,3 +187,53 @@ export const splitMentions = (
 
   return segments;
 };
+
+export interface HighlightSegment {
+  text: string;
+  isMatch: boolean;
+}
+
+/**
+ * Bỏ dấu từng ký tự một. `normalize("NFD")` trên cả chuỗi làm lệch chỉ số vì mỗi chữ có dấu
+ * tách thành hai ký tự, mà tô sáng thì phải cắt đúng vị trí trên chuỗi gốc.
+ */
+const COMBINING_MARKS = /[\u0300-\u036f]/g;
+
+const stripAccentsPreservingLength = (value: string): string =>
+  [...value.toLowerCase().replace(/đ/g, "d")]
+    .map((char) => {
+      const stripped = char.normalize("NFD").replace(COMBINING_MARKS, "");
+      return stripped.length === 1 ? stripped : char;
+    })
+    .join("");
+
+/**
+ * Cắt nội dung thành các mẩu khớp và không khớp từ khoá. Backend tìm trên bản đã bỏ dấu nên
+ * ở đây cũng phải so không dấu, nếu không gõ "hop giao ban" ra kết quả mà không chỗ nào sáng.
+ */
+export const splitKeywordMatches = (
+  content: string,
+  keyword: string,
+): HighlightSegment[] => {
+  const needle = stripAccentsPreservingLength(keyword.trim());
+  if (!needle || !content) return [{ text: content, isMatch: false }];
+
+  const haystack = stripAccentsPreservingLength(content);
+  const segments: HighlightSegment[] = [];
+  let cursor = 0;
+
+  for (;;) {
+    const at = haystack.indexOf(needle, cursor);
+    if (at === -1) break;
+
+    if (at > cursor) segments.push({ text: content.slice(cursor, at), isMatch: false });
+    segments.push({ text: content.slice(at, at + needle.length), isMatch: true });
+    cursor = at + needle.length;
+  }
+
+  if (cursor < content.length) {
+    segments.push({ text: content.slice(cursor), isMatch: false });
+  }
+
+  return segments;
+};

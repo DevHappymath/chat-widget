@@ -15,6 +15,7 @@ export const HubEvent = {
   MessageDeleted: "MessageDeleted",
 
   ReactionChanged: "ReactionChanged",
+  MessagePinChanged: "MessagePinChanged",
 
   UserTyping: "UserTyping",
   NotificationCreated: "NotificationCreated",

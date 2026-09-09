@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
-import type { ChatMessage } from "../types/chat";
+import type { ChatMessage, MessageAttachment } from "../types/chat";
 import type { MessageCluster } from "../utils/chat";
 import { splitMentions } from "../utils/chat";
 import { formatBytes, formatDateISO, formatDateTime, formatTime } from "../utils/format";
@@ -30,6 +30,7 @@ const {
   toggleReaction,
   myReactionOf,
   openMessageActions,
+  isPinned,
 } = useChatStore();
 
 /** Đủ lâu để phân biệt với chạm thường, đủ ngắn để không thấy máy bị đơ. */
@@ -130,6 +131,30 @@ const editedAtLabel = (message: ChatMessage) => {
     ? formatTime(editedAt)
     : formatDateTime(editedAt);
 };
+
+/** Khung tối đa của ảnh trong bong bóng, dùng để tính sẵn chỗ trước khi ảnh tải xong. */
+const IMAGE_MAX_WIDTH = 220;
+const IMAGE_MAX_HEIGHT = 208;
+
+/**
+ * Chốt sẵn kích thước hiển thị từ `width`/`height` server trả về. Thiếu nó thì mỗi ảnh tải
+ * xong lại đẩy danh sách tin nhắn nhảy một nhịp. Ảnh gửi trước khi có tính năng này để trống.
+ */
+const imageBox = (file: MessageAttachment) => {
+  if (!file.width || !file.height) return undefined;
+
+  const scale = Math.min(IMAGE_MAX_WIDTH / file.width, IMAGE_MAX_HEIGHT / file.height, 1);
+
+  return {
+    width: `${Math.round(file.width * scale)}px`,
+    height: `${Math.round(file.height * scale)}px`,
+  };
+};
+
+const forwardedFromLabel = (message: ChatMessage) =>
+  message.forwardedFromUserId
+    ? `Đã chuyển tiếp từ ${nameOfUser(message.forwardedFromUserId)}`
+    : "";
 
 const canOpenActions = (message: ChatMessage) =>
   !message.isDeleted &&
@@ -240,6 +265,14 @@ const onEditKeydown = (event: KeyboardEvent) => {
               </p>
 
               <template v-else>
+                <p
+                  v-if="message.forwardedFromUserId"
+                  class="mb-1 flex items-center gap-1 text-[10px] italic text-gray-500"
+                >
+                  <WidgetIcon name="Forward" :size="10" />
+                  {{ forwardedFromLabel(message) }}
+                </p>
+
                 <button
                   v-if="message.replyTo"
                   type="button"
@@ -285,10 +318,11 @@ const onEditKeydown = (event: KeyboardEvent) => {
                     class="mt-1.5 block overflow-hidden rounded-xl"
                   >
                     <img
-                      :src="file.fileUrl"
+                      :src="file.thumbnailUrl || file.fileUrl"
                       :alt="file.fileName"
+                      :style="imageBox(file)"
                       loading="lazy"
-                      class="max-h-52 w-auto rounded-xl object-cover"
+                      class="max-h-52 w-auto max-w-full rounded-xl object-cover"
                     />
                   </a>
 
@@ -352,6 +386,14 @@ const onEditKeydown = (event: KeyboardEvent) => {
             </button>
           </li>
         </ul>
+
+        <p
+          v-if="isPinned(message) && !message.isDeleted"
+          class="mt-0.5 flex items-center gap-1 px-1 text-[11px] font-medium text-amber-600"
+        >
+          <WidgetIcon name="Pin" :size="10" />
+          Đã ghim
+        </p>
 
         <p
           v-if="message.editedAtUtc && !message.isDeleted"

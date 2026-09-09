@@ -6,6 +6,9 @@ import ConfirmDialog from "./ConfirmDialog.vue";
 import ContactPicker from "./ContactPicker.vue";
 import ConversationInfoScreen from "./ConversationInfoScreen.vue";
 import ConversationList from "./ConversationList.vue";
+import ForwardScreen from "./ForwardScreen.vue";
+import MediaScreen from "./MediaScreen.vue";
+import MessageSearchScreen from "./MessageSearchScreen.vue";
 import MessageThread from "./MessageThread.vue";
 import NewGroupScreen from "./NewGroupScreen.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -21,6 +24,9 @@ const HEADINGS: Record<WidgetView, string> = {
   thread: "Đoạn chat",
   info: "Thông tin",
   "add-members": "Thêm thành viên",
+  search: "Tìm tin nhắn",
+  forward: "Chuyển tiếp",
+  media: "Ảnh và tệp",
 };
 
 const heading = computed(() => HEADINGS[view.value]);
@@ -84,6 +90,9 @@ const subheading = computed(() => {
     <NewGroupScreen v-else-if="view === 'new-group'" />
     <ConversationInfoScreen v-else-if="view === 'info'" />
     <AddMembersScreen v-else-if="view === 'add-members'" />
+    <MessageSearchScreen v-else-if="view === 'search'" />
+    <ForwardScreen v-else-if="view === 'forward'" />
+    <MediaScreen v-else-if="view === 'media'" />
     <MessageThread v-else />
 
     <WidgetToaster />

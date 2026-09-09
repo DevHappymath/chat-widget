@@ -4,6 +4,7 @@ import { useChatStore } from "../core/store/useChatStore";
 import { groupChatMessages, presenceLabel } from "../utils/chat";
 import MessageCluster from "./MessageCluster.vue";
 import MessageComposer from "./MessageComposer.vue";
+import PinnedBar from "./PinnedBar.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -126,6 +127,16 @@ const onLoadOlder = async () => {
       <template v-if="activeConversation">
         <button
           type="button"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100"
+          aria-label="Tìm trong hội thoại"
+          title="Tìm trong hội thoại"
+          @click="view = 'search'"
+        >
+          <WidgetIcon name="Search" :size="17" />
+        </button>
+
+        <button
+          type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-gray-100"
           :class="activeConversation.isMuted ? 'text-chat-accent-strong' : 'text-gray-500'"
           :aria-label="activeConversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
@@ -146,6 +157,8 @@ const onLoadOlder = async () => {
         </button>
       </template>
     </header>
+
+    <PinnedBar />
 
     <div ref="scroller" class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3">
       <div v-if="hasMoreMessages" class="mb-3 flex justify-center">

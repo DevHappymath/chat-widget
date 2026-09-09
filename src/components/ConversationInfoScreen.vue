@@ -20,7 +20,6 @@ const {
   view,
   currentUserId,
   activeConversation,
-  activeMessages,
   attachmentRule,
   isGroup,
   isOnline,
@@ -168,11 +167,6 @@ const onLeave = async () => {
   }
 };
 
-const sharedFiles = computed(() =>
-  activeMessages.value
-    .filter((message) => !message.isDeleted)
-    .flatMap((message) => message.attachments),
-);
 </script>
 
 <template>
@@ -347,41 +341,24 @@ const sharedFiles = computed(() =>
     </div>
 
     <div class="border-t border-gray-100 px-4 py-4">
-      <p class="mb-2 text-[11px] font-bold uppercase tracking-wide text-gray-500">
-        Tệp đã trao đổi
-      </p>
-
-      <ul v-if="sharedFiles.length" class="space-y-0.5">
-        <li v-for="file in sharedFiles" :key="file.id">
-          <a
-            :href="file.fileUrl"
-            target="_blank"
-            rel="noopener"
-            class="flex items-center gap-2.5 rounded-xl px-1.5 py-1.5 transition-colors hover:bg-gray-50"
-          >
-            <span
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-chat-accent/10 text-chat-accent-strong"
-            >
-              <WidgetIcon
-                :name="file.contentType.startsWith('image/') ? 'Image' : 'FileText'"
-                :size="15"
-              />
-            </span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-xs font-medium text-gray-800">
-                {{ file.fileName }}
-              </span>
-              <span class="block text-[11px] text-gray-600">
-                {{ formatBytes(file.sizeBytes, 0) }}
-              </span>
-            </span>
-          </a>
-        </li>
-      </ul>
-
-      <p v-else class="text-xs text-gray-600">
-        Hội thoại này chưa có tệp nào được gửi.
-      </p>
+      <button
+        type="button"
+        class="flex w-full items-center gap-2.5 rounded-xl px-1.5 py-2 text-left transition-colors hover:bg-gray-50"
+        @click="view = 'media'"
+      >
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-chat-accent/10 text-chat-accent-strong"
+        >
+          <WidgetIcon name="Images" :size="16" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-xs font-semibold text-gray-800">Ảnh và tệp</span>
+          <span class="block text-[11px] text-gray-600">
+            Toàn bộ tệp đã gửi trong hội thoại
+          </span>
+        </span>
+        <WidgetIcon name="ChevronRight" :size="16" class="shrink-0 text-gray-400" />
+      </button>
     </div>
 
     <div v-if="group" class="border-t border-gray-100 px-4 py-4">
