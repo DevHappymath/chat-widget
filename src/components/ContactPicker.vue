@@ -4,7 +4,7 @@ import type { AppUser } from "../types/chat";
 import PeoplePicker from "./PeoplePicker.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
-const { view, openConversationWith } = useChatStore();
+const { view, isStudent, openConversationWith } = useChatStore();
 
 const pick = (person: AppUser) =>
   openConversationWith({
@@ -16,7 +16,7 @@ const pick = (person: AppUser) =>
 
 <template>
   <PeoplePicker @pick="pick">
-    <template #top>
+    <template v-if="!isStudent" #top>
       <button
         type="button"
         class="flex w-full items-center gap-3 rounded-xl border border-dashed border-gray-200 px-3 py-2.5 text-left transition-colors hover:border-chat-accent hover:bg-chat-accent/5"

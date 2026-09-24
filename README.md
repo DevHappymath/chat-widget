@@ -1,6 +1,6 @@
 # @gdtd/chat-widget
 
-Bong bóng chat kiểu Messenger cho CRM, HRM, LMS. Widget gọi thẳng chat service
+Bong bóng chat kiểu Messenger cho CRM, HRM, LMS và cổng học sinh. Widget gọi thẳng chat service
 (`chat.giaoducthanhdat.vn`) bằng access_token SSO của chính site chủ, không dùng iframe và
 không proxy REST qua BFF của site.
 
@@ -143,8 +143,11 @@ lại; giữ cứng token là tab mở cả ngày sẽ mất kết nối vĩnh v
 
 ## Cách widget hoạt động
 
-1. `GET /api/chat/bootstrap` quyết định hiện hay ẩn. `canUseChat: false` (học viên, cộng tác
-   viên) thì không render gì cả, không phải mã lỗi nên không có màn hình lỗi nhấp nháy.
+1. `GET /api/chat/bootstrap` quyết định hiện hay ẩn. `canUseChat: false` (người ngoài công ty,
+   hoặc học sinh khi chat service chưa bật `ChatAudience:AllowStudents`) thì không render gì cả,
+   không phải mã lỗi nên không có màn hình lỗi nhấp nháy.
+   Bootstrap cũng trả `audience`: với học sinh, widget ẩn "Tạo nhóm mới" và gọi danh bạ là
+   "Giáo viên của bạn". Luật ai được nhắn với ai nằm ở server; widget chỉ ẩn nút cho khỏi bấm nhầm.
 2. Bootstrap trả `hubPath`, số chưa đọc và giới hạn tệp; widget mở **một** kết nối hub cho cả
    tab, mọi component dùng chung một store.
 3. Danh sách hội thoại chỉ nạp khi người dùng mở panel lần đầu. Trước đó badge lấy từ bootstrap

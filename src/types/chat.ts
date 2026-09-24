@@ -17,6 +17,14 @@ export const MessageType = {
 } as const;
 export type MessageType = (typeof MessageType)[keyof typeof MessageType];
 
+/** Nhóm người dùng chat do bootstrap trả về. */
+export const ChatAudience = {
+  None: 0,
+  Staff: 1,
+  Student: 2,
+} as const;
+export type ChatAudience = (typeof ChatAudience)[keyof typeof ChatAudience];
+
 export const ParticipantRole = {
   Member: 1,
   Admin: 2,
@@ -326,9 +334,11 @@ export interface ChatAttachmentRule {
 
 /** Kết quả `GET /api/chat/bootstrap`, quyết định widget hiện hay ẩn. */
 export interface ChatBootstrap {
-  /** False thay vì 403, để ẩn hẳn bong bóng với tài khoản không phải nhân sự. */
+  /** False thay vì 403, để ẩn hẳn bong bóng với tài khoản chưa được mở chat. */
   canUseChat: boolean;
   user?: ChatBootstrapUser | null;
+  /** Thiếu ở chat service đời cũ; khi đó coi như nhân sự. */
+  audience?: ChatAudience;
   unreadConversations: number;
   unreadMessages: number;
   unreadNotifications: number;

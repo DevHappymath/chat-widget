@@ -14,7 +14,7 @@ import NewGroupScreen from "./NewGroupScreen.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 import WidgetToaster from "./WidgetToaster.vue";
 
-const { view, currentUserName, activeConversation, isGroup, closePanel, goBack } =
+const { view, currentUserName, activeConversation, isGroup, isStudent, closePanel, goBack } =
   useChatStore();
 
 const HEADINGS: Record<WidgetView, string> = {
@@ -29,7 +29,10 @@ const HEADINGS: Record<WidgetView, string> = {
   media: "Ảnh và tệp",
 };
 
-const heading = computed(() => HEADINGS[view.value]);
+// Danh bạ của học sinh chỉ gồm giáo viên phụ trách, gọi đúng tên cho họ khỏi tìm người khác.
+const heading = computed(() =>
+  view.value === "contacts" && isStudent.value ? "Giáo viên của bạn" : HEADINGS[view.value],
+);
 const showBack = computed(() => view.value !== "list");
 
 const subheading = computed(() => {
@@ -44,7 +47,7 @@ const subheading = computed(() => {
   <section
     class="relative flex h-full w-full flex-col overflow-hidden bg-white sm:rounded-2xl sm:border sm:border-gray-200 sm:shadow-2xl"
     role="dialog"
-    aria-label="Khung chat nội bộ"
+    aria-label="Khung chat"
   >
     <header
       class="flex shrink-0 items-center gap-2 border-b border-gray-100 bg-chat-accent-strong px-3 py-3 text-white"

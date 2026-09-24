@@ -25,13 +25,18 @@ const props = withDefaults(
     disabledIds: () => [],
     disabledLabel: "Đã ở trong nhóm",
     multiple: false,
-    placeholder: "Tìm theo tên hoặc email",
+    placeholder: undefined,
   },
 );
 
 const emit = defineEmits<{ pick: [person: AppUser] }>();
 
-const { currentUserId, isOnline } = useChatStore();
+const { currentUserId, isOnline, isStudent } = useChatStore();
+
+// Học sinh không thấy email của giáo viên nên chỉ gợi ý tìm theo tên.
+const searchPlaceholder = computed(
+  () => props.placeholder ?? (isStudent.value ? "Tìm theo tên giáo viên" : "Tìm theo tên hoặc email"),
+);
 const toast = useWidgetToast();
 
 const users = ref<AppUser[]>([]);
@@ -91,7 +96,7 @@ onMounted(load);
         <input
           v-model="search"
           type="search"
-          :placeholder="placeholder"
+          :placeholder="searchPlaceholder"
           class="w-full rounded-full bg-gray-50 py-2 pl-10 pr-4 text-sm text-gray-900 outline-none ring-1 ring-gray-200 transition-colors placeholder:text-gray-500 focus:bg-white focus:ring-2 focus:ring-chat-accent"
         />
       </div>
@@ -128,7 +133,10 @@ onMounted(load);
               <span class="block truncate text-sm font-semibold text-gray-800">
                 {{ displayNameOf(person) }}
               </span>
-              <span class="block truncate text-xs text-gray-600">
+              <span
+                v-if="person.email || person.employeeCode"
+                class="block truncate text-xs text-gray-600"
+              >
                 {{ person.email }}
                 <template v-if="person.employeeCode"> · {{ person.employeeCode }}</template>
               </span>
@@ -156,10 +164,16 @@ onMounted(load);
         </li>
 
         <li v-if="!contacts.length" class="px-2 py-12 text-center">
-          <p class="text-sm font-semibold text-gray-800">Không tìm thấy ai phù hợp</p>
-          <p class="mt-1 text-xs text-gray-600">
-            Danh bạ lấy từ tài khoản đã đồng bộ với AuthService.
-          </p>
+          <template v-if="isStudent && !search">
+            <p class="text-sm font-semibold text-gray-800">Chưa có giáo viên nào phụ trách bạn</p>
+            <p class="mt-1 text-xs text-gray-600">
+              Giáo viên các lớp bạn đang học sẽ hiện ở đây.
+            </p>
+          </template>
+          <template v-else>
+            <p class="text-sm font-semibold text-gray-800">Không tìm thấy ai phù hợp</p>
+            <p class="mt-1 text-xs text-gray-600">Thử tìm bằng tên khác.</p>
+          </template>
         </li>
       </ul>
     </div>

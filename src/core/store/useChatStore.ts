@@ -9,6 +9,7 @@ import {
   AttachmentKind,
   ConversationType,
   MessageType,
+  ChatAudience,
   ParticipantRole,
   type ChatBootstrap,
   type ChatConversation,
@@ -176,6 +177,9 @@ export const useChatStore = () => {
   );
 
   const canUseChat = computed(() => bootstrap.value?.canUseChat === true);
+
+  /** Học sinh chỉ nhắn với giáo viên của mình và không tạo nhóm; server cũng chặn, đây chỉ để ẩn nút. */
+  const isStudent = computed(() => bootstrap.value?.audience === ChatAudience.Student);
 
   const attachmentRule = computed(
     () =>
@@ -1300,6 +1304,7 @@ export const useChatStore = () => {
     isBooting,
     bootError,
     canUseChat,
+    isStudent,
     currentUserId,
     currentUserName,
     attachmentRule,
