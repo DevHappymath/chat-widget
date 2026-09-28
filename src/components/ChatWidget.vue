@@ -4,6 +4,7 @@ import { configureChatWidget, type ChatWidgetConfig } from "../core/config";
 import { useChatStore } from "../core/store/useChatStore";
 import { lockPageScroll, unlockPageScroll, useIsWideViewport } from "../core/viewport";
 import ChatPanel from "./ChatPanel.vue";
+import ImageViewer from "./ImageViewer.vue";
 import MessageActionSheet from "./MessageActionSheet.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -32,7 +33,10 @@ watch(
   (shouldLock) => (shouldLock ? lockPageScroll() : unlockPageScroll()),
 );
 
-onBeforeUnmount(unlockPageScroll);
+// Khoá cuộn đếm theo lượt nên chỉ nhả phần của panel, không nhả hộ trình xem ảnh.
+onBeforeUnmount(() => {
+  if (isPanelOpen.value && !isWide.value) unlockPageScroll();
+});
 
 const isLeft = computed(() => props.config.position === "bottom-left");
 
@@ -127,4 +131,5 @@ onBeforeUnmount(() => {
   </Teleport>
 
   <MessageActionSheet v-if="canUseChat" />
+  <ImageViewer v-if="canUseChat" />
 </template>

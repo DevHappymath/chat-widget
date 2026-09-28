@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
+import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
 import type { ChatMessage, MessageAttachment } from "../types/chat";
 import type { MessageCluster } from "../utils/chat";
 import { splitMentions } from "../utils/chat";
@@ -18,6 +19,7 @@ const props = defineProps<{
 
 const {
   activeConversation,
+  activeMessages,
   pendingClientIds,
   failedClientIds,
   editingMessageId,
@@ -32,6 +34,8 @@ const {
   openMessageActions,
   isPinned,
 } = useChatStore();
+
+const imageViewer = useImageViewer();
 
 /** Đủ lâu để phân biệt với chạm thường, đủ ngắn để không thấy máy bị đơ. */
 const LONG_PRESS_MS = 450;
@@ -115,6 +119,13 @@ const nameOfUser = (userId: string) => {
   );
   return participant?.fullName || participant?.email || "Người dùng";
 };
+
+// Dải ảnh gồm mọi ảnh trong các tin đã tải, để bấm một ảnh là lướt tiếp được sang ảnh khác.
+const openImage = (file: MessageAttachment) =>
+  imageViewer.open(
+    imagesFromMessages(activeMessages.value, (m) => m.senderName || nameOfUser(m.senderId)),
+    file.id,
+  );
 
 /** Backend chỉ lưu userId của người được nhắc, tên phải tra ngược từ danh sách thành viên. */
 const contentSegments = (message: ChatMessage) =>
@@ -310,12 +321,12 @@ const onEditKeydown = (event: KeyboardEvent) => {
                 </p>
 
                 <template v-for="file in message.attachments" :key="file.id">
-                  <a
+                  <button
                     v-if="file.contentType.startsWith('image/')"
-                    :href="file.fileUrl"
-                    target="_blank"
-                    rel="noopener"
-                    class="mt-1.5 block overflow-hidden rounded-xl"
+                    type="button"
+                    class="mt-1.5 block cursor-zoom-in overflow-hidden rounded-xl"
+                    :aria-label="`Xem ảnh ${file.fileName}`"
+                    @click="openImage(file)"
                   >
                     <img
                       :src="file.thumbnailUrl || file.fileUrl"
@@ -324,7 +335,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                       loading="lazy"
                       class="max-h-52 w-auto max-w-full rounded-xl object-cover"
                     />
-                  </a>
+                  </button>
 
                   <a
                     v-else

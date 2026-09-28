@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
-import { AttachmentKind } from "../types/chat";
+import { imagesFromMedia, useImageViewer } from "../core/store/useImageViewer";
+import { AttachmentKind, type ConversationAttachment } from "../types/chat";
 import { formatBytes } from "../utils/format";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -30,6 +31,16 @@ onMounted(() => {
 });
 
 const isImage = (contentType: string) => contentType.startsWith("image/");
+
+const imageViewer = useImageViewer();
+
+// Ảnh xem ngay tại chỗ; tệp khác vẫn mở tab mới vì trình duyệt mới đọc được nội dung.
+const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
+  if (!isImage(item.attachment.contentType)) return;
+
+  event.preventDefault();
+  imageViewer.open(imagesFromMedia(mediaItems.value), item.attachment.id);
+};
 </script>
 
 <template>
@@ -88,6 +99,7 @@ const isImage = (contentType: string) => contentType.startsWith("image/");
               target="_blank"
               rel="noopener"
               class="flex min-w-0 flex-1 items-center gap-2.5"
+              @click="onOpenItem($event, item)"
             >
               <img
                 v-if="isImage(item.attachment.contentType)"

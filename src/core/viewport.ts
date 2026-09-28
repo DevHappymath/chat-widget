@@ -25,15 +25,17 @@ export const useIsWideViewport = () => {
 };
 
 let savedScrollY = 0;
-let isLocked = false;
+/** Panel và trình xem ảnh cùng khoá được; chỉ mở lại khi bên khoá cuối cùng đã nhả. */
+let lockCount = 0;
 
 /**
- * Khoá cuộn trang nền khi panel phủ toàn màn hình. Dùng `position: fixed` chứ không chỉ
- * `overflow: hidden` vì Safari trên iOS bỏ qua `overflow: hidden` ở body.
+ * Khoá cuộn trang nền khi panel hoặc trình xem ảnh phủ toàn màn hình. Dùng `position: fixed`
+ * chứ không chỉ `overflow: hidden` vì Safari trên iOS bỏ qua `overflow: hidden` ở body.
  */
 export const lockPageScroll = () => {
-  if (isLocked || typeof document === "undefined") return;
-  isLocked = true;
+  if (typeof document === "undefined") return;
+  lockCount++;
+  if (lockCount > 1) return;
 
   savedScrollY = window.scrollY;
   const { style } = document.body;
@@ -46,8 +48,9 @@ export const lockPageScroll = () => {
 };
 
 export const unlockPageScroll = () => {
-  if (!isLocked || typeof document === "undefined") return;
-  isLocked = false;
+  if (lockCount === 0 || typeof document === "undefined") return;
+  lockCount--;
+  if (lockCount > 0) return;
 
   const { style } = document.body;
 
