@@ -172,8 +172,8 @@ const removeAttachment = (fileUrl: string) => {
 
 // ─── Ô nhập ───────────────────────────────────────────────────────────────────
 
-// Textarea tự cao theo nội dung, chặn ở 5 dòng để khung chat không bị đẩy hết lên.
-const MAX_HEIGHT_PX = 110;
+// Textarea tự cao theo nội dung, chặn ở 4 dòng để khung chat không bị đẩy hết lên.
+const MAX_HEIGHT_PX = 108;
 
 const resize = () => {
   const el = textarea.value;
@@ -249,11 +249,12 @@ defineExpose({ focus });
 </script>
 
 <template>
-  <div class="relative shrink-0 border-t border-gray-100 bg-white px-3 py-2.5">
+  <div class="relative shrink-0 bg-white px-3 pb-3 pt-1">
     <div
       v-if="replyingTo"
-      class="mb-2 flex items-start gap-2 rounded-r-lg border-l-2 border-chat-accent bg-chat-accent/5 px-3 py-2"
+      class="mb-2 flex items-stretch gap-2.5 rounded-xl bg-chat-accent/5 px-3 py-2"
     >
+      <span class="w-0.5 shrink-0 rounded-full bg-chat-accent-strong" />
       <div class="min-w-0 flex-1">
         <p class="text-[11px] font-semibold text-chat-accent-strong">
           Đang trả lời {{ replyingTo.senderName || "tin nhắn" }}
@@ -308,7 +309,11 @@ defineExpose({ focus });
       </li>
     </ul>
 
-    <div class="flex items-end gap-1.5">
+    <!-- Nút đính kèm và nút gửi nằm trong cùng một khung với ô nhập, ba thứ cao bằng nhau
+         (36px) để icon luôn thẳng tâm dòng chữ đầu tiên. -->
+    <div
+      class="flex items-end gap-1 rounded-3xl bg-gray-100 p-1.5 ring-1 ring-transparent transition-colors focus-within:bg-white focus-within:ring-chat-accent/50"
+    >
       <input
         ref="fileInput"
         type="file"
@@ -320,7 +325,7 @@ defineExpose({ focus });
 
       <button
         type="button"
-        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-chat-accent-strong"
+        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
         aria-label="Đính kèm tệp"
         :title="`Đính kèm tệp, tối đa ${formatBytes(attachmentRule.maxSizeBytes, 0)} mỗi tệp`"
         @click="fileInput?.click()"
@@ -328,21 +333,17 @@ defineExpose({ focus });
         <WidgetIcon name="Paperclip" :size="18" />
       </button>
 
-      <!-- Viền vẽ bằng ring để không cộng vào chiều cao: ô nhập phải cao đúng bằng hai nút,
-           lệch vài px là icon nằm thấp hơn tâm ô nhập. -->
-      <div
-        class="flex min-h-10 flex-1 items-center rounded-3xl bg-gray-50 px-3.5 ring-1 ring-gray-200 transition-colors focus-within:bg-white focus-within:ring-2 focus-within:ring-chat-accent"
-      >
+      <div class="flex min-h-9 min-w-0 flex-1 items-center px-1.5">
         <div class="relative w-full">
           <div
             ref="mirror"
             aria-hidden="true"
-            class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap py-2 text-sm leading-6 text-gray-900 wrap-break-word"
+            class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap py-1.5 text-sm leading-6 text-gray-900 wrap-break-word"
           >
             <span
               v-for="(segment, index) in bodySegments"
               :key="index"
-              :class="segment.isMention && 'bg-chat-accent/20 text-chat-accent-strong'"
+              :class="segment.isMention && 'bg-chat-accent/10 text-chat-accent-strong'"
               >{{ segment.text }}</span
             ><span>&#8203;</span>
           </div>
@@ -352,7 +353,7 @@ defineExpose({ focus });
             v-model="body"
             rows="1"
             :placeholder="placeholder"
-            class="gdtd-chat-no-scrollbar relative w-full resize-none border-0 bg-transparent px-0 py-2 text-sm leading-6 text-transparent caret-gray-900 outline-none placeholder:text-gray-500"
+            class="gdtd-chat-no-scrollbar relative block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-sm leading-6 text-transparent caret-gray-900 outline-none placeholder:text-gray-500"
             @keydown="onKeydown"
             @keyup="refreshMentionQuery"
             @click="refreshMentionQuery"
@@ -363,18 +364,18 @@ defineExpose({ focus });
 
       <button
         type="button"
-        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed"
+        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed"
         :class="
           canSend
-            ? 'bg-chat-accent-strong text-white hover:brightness-110'
-            : 'bg-gray-100 text-gray-500'
+            ? 'bg-chat-accent-strong text-white hover:brightness-110 active:scale-95'
+            : 'text-gray-400'
         "
         :disabled="!canSend"
         aria-label="Gửi tin nhắn"
         title="Gửi tin nhắn (Enter)"
         @click="submit"
       >
-        <WidgetIcon name="Send" :size="16" />
+        <WidgetIcon name="ArrowUp" :size="18" />
       </button>
     </div>
 

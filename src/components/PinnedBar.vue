@@ -52,12 +52,12 @@ const onUnpin = async (message: ChatMessage) => {
 </script>
 
 <template>
-  <div v-if="latest" class="shrink-0 border-b border-gray-100 bg-amber-50">
+  <div v-if="latest" class="shrink-0 border-b border-gray-100 bg-chat-accent/5">
     <div class="flex items-center gap-2 px-3 py-1.5">
-      <WidgetIcon name="Pin" :size="14" class="shrink-0 text-amber-600" />
+      <WidgetIcon name="Pin" :size="14" class="shrink-0 text-chat-accent" />
 
       <button type="button" class="min-w-0 flex-1 text-left" @click="onOpen(latest)">
-        <span class="block truncate text-[11px] font-semibold text-amber-700">
+        <span class="block truncate text-[11px] font-semibold tabular-nums text-chat-accent-strong">
           Tin đã ghim
           <template v-if="pinnedMessages.length > 1">
             ({{ pinnedMessages.length }}/{{ MAX_PINNED_PER_CONVERSATION }})
@@ -71,7 +71,7 @@ const onUnpin = async (message: ChatMessage) => {
       <button
         v-if="pinnedMessages.length > 1"
         type="button"
-        class="inline-flex h-6 shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+        class="inline-flex h-6 shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[10px] font-semibold text-chat-accent-strong transition-colors hover:bg-chat-accent/10"
         @click="isPinnedBarExpanded = !isPinnedBarExpanded"
       >
         {{ isPinnedBarExpanded ? "Thu gọn" : "Tất cả" }}
@@ -85,7 +85,7 @@ const onUnpin = async (message: ChatMessage) => {
 
       <button
         type="button"
-        class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-amber-600 transition-colors hover:bg-amber-100"
+        class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
         aria-label="Bỏ ghim tin nhắn này"
         title="Bỏ ghim tin nhắn này"
         @click="onUnpin(latest)"
@@ -96,12 +96,12 @@ const onUnpin = async (message: ChatMessage) => {
 
     <ul
       v-if="isPinnedBarExpanded && pinnedMessages.length > 1"
-      class="gdtd-chat-scroll max-h-40 overflow-y-auto border-t border-amber-100 px-1.5 pb-1.5"
+      class="gdtd-chat-scroll max-h-40 overflow-y-auto border-t border-chat-accent/10 px-1.5 pb-1.5"
     >
       <li v-for="message in pinnedMessages" :key="message.id" class="flex items-center gap-1">
         <button
           type="button"
-          class="min-w-0 flex-1 rounded-lg px-2 py-1 text-left transition-colors hover:bg-amber-100"
+          class="min-w-0 flex-1 rounded-lg px-2 py-1 text-left transition-colors hover:bg-chat-accent/10"
           @click="onOpen(message)"
         >
           <span class="block truncate text-[11px] font-semibold text-gray-800">
@@ -114,7 +114,7 @@ const onUnpin = async (message: ChatMessage) => {
 
         <button
           type="button"
-          class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-amber-600 transition-colors hover:bg-amber-100"
+          class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
           :aria-label="`Bỏ ghim tin của ${senderNameOf(message)}`"
           @click="onUnpin(message)"
         >

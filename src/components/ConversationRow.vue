@@ -36,10 +36,10 @@ const timestamp = computed(
 </script>
 
 <template>
-  <div class="group flex items-center border-b border-gray-50 transition-colors hover:bg-gray-50">
+  <div class="group flex items-center rounded-xl transition-colors hover:bg-gray-50">
     <button
       type="button"
-      class="flex min-w-0 flex-1 items-center gap-3 py-3 pl-4 pr-2 text-left"
+      class="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2.5 pr-2 text-left"
       @click="$emit('select', conversation.id)"
     >
       <WidgetAvatar
@@ -54,8 +54,8 @@ const timestamp = computed(
       <span class="min-w-0 flex-1">
         <span class="flex items-center gap-1.5">
           <span
-            class="truncate text-sm"
-            :class="isUnread ? 'font-bold text-gray-900' : 'font-semibold text-gray-800'"
+            class="truncate text-sm text-gray-900"
+            :class="isUnread ? 'font-semibold' : 'font-medium'"
           >
             {{ titleOf(conversation) }}
           </span>
@@ -69,47 +69,50 @@ const timestamp = computed(
 
         <span
           v-if="isTyping"
-          class="mt-0.5 block truncate text-xs font-medium text-chat-accent-strong"
+          class="mt-0.5 block truncate text-xs text-chat-accent-strong"
         >
           Đang soạn tin...
         </span>
         <span
           v-else
           class="mt-0.5 block truncate text-xs"
-          :class="isUnread ? 'font-semibold text-gray-700' : 'text-gray-500'"
+          :class="isUnread ? 'font-medium text-gray-900' : 'text-gray-500'"
         >
           {{ preview }}
         </span>
       </span>
     </button>
 
-    <div class="flex shrink-0 flex-col items-end gap-1.5 py-3 pr-3">
-      <span class="whitespace-nowrap text-[11px] text-gray-500">
+    <div class="flex shrink-0 flex-col items-end gap-1.5 py-2.5 pr-3">
+      <span
+        class="whitespace-nowrap text-[11px] tabular-nums"
+        :class="isUnread ? 'font-medium text-chat-accent-strong' : 'text-gray-500'"
+      >
         {{ chatListTimestamp(timestamp) }}
       </span>
 
       <span
         v-if="isUnread"
-        class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-chat-accent-strong px-1.5 text-[11px] font-bold tabular-nums text-white"
+        class="inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-chat-accent-strong px-1 text-[11px] font-semibold tabular-nums text-white"
       >
         {{ conversation.unreadCount }}
       </span>
       <button
         v-else
         type="button"
-        class="inline-flex h-5 w-5 items-center justify-center rounded-md transition-colors"
+        class="inline-flex h-4.5 w-4.5 items-center justify-center rounded-md transition-all hover:text-chat-accent-strong"
         :class="
           conversation.isPinned
-            ? 'text-amber-500 hover:text-amber-600'
-            : 'text-gray-300 opacity-0 hover:text-gray-500 focus-visible:opacity-100 group-hover:opacity-100 chat-touch:opacity-100'
+            ? 'text-chat-accent'
+            : 'text-gray-400 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 chat-touch:opacity-100'
         "
         :aria-label="conversation.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'"
         :title="conversation.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'"
         @click="togglePin(conversation.id)"
       >
         <WidgetIcon
-          name="Star"
-          :size="15"
+          name="Pin"
+          :size="14"
           :class="conversation.isPinned && 'fill-current'"
         />
       </button>

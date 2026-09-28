@@ -46,16 +46,16 @@ const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
     <div class="shrink-0 px-3 pb-2 pt-3">
-      <nav class="flex gap-1 rounded-full bg-gray-100 p-0.5">
+      <nav class="flex gap-1">
         <button
           v-for="option in filters"
           :key="option.label"
           type="button"
-          class="flex-1 rounded-full py-1.5 text-xs font-semibold transition-colors"
+          class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
           :class="
             mediaKind === option.value
-              ? 'bg-white text-chat-accent-strong shadow-sm'
-              : 'text-gray-600 hover:text-gray-900'
+              ? 'bg-chat-accent-strong text-white'
+              : 'text-gray-600 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
           "
           @click="setMediaKind(option.value)"
         >
@@ -128,7 +128,7 @@ const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
 
             <button
               type="button"
-              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-chat-accent-strong"
+              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
               aria-label="Mở tin nhắn đã gửi tệp này"
               title="Mở tin nhắn đã gửi tệp này"
               @click="activeConversationId && revealMessage(activeConversationId, item.messageId)"

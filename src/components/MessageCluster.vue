@@ -167,10 +167,24 @@ const forwardedFromLabel = (message: ChatMessage) =>
     ? `Đã chuyển tiếp từ ${nameOfUser(message.forwardedFromUserId)}`
     : "";
 
+/** Tin chỉ có tệp thì không vẽ bong bóng, tránh một khung rỗng nằm trên tệp. */
+const hasBubble = (message: ChatMessage) =>
+  message.isDeleted || Boolean(message.content?.trim()) || Boolean(message.replyTo);
+
 const canOpenActions = (message: ChatMessage) =>
   !message.isDeleted &&
   !pendingClientIds.value.includes(message.clientMessageId) &&
   !failedClientIds.value.includes(message.clientMessageId);
+
+/** Khung sửa cao theo nội dung, tin dài không phải đọc qua ô hai dòng; quá cao thì cuộn. */
+const EDIT_MAX_HEIGHT_PX = 180;
+
+const fitEditBox = (el: HTMLTextAreaElement | null) => {
+  if (!el) return;
+
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, EDIT_MAX_HEIGHT_PX)}px`;
+};
 
 const onEditKeydown = (event: KeyboardEvent) => {
   if (event.key === "Escape") {
@@ -216,36 +230,43 @@ const onEditKeydown = (event: KeyboardEvent) => {
         class="-mx-1 flex max-w-[88%] flex-col rounded-2xl px-1 py-0.5 transition-colors duration-500"
         :class="[
           cluster.isOwn && 'items-end',
-          highlightedMessageId === message.id && 'bg-amber-100/70',
+          editingMessageId === message.id && 'w-full',
+          highlightedMessageId === message.id &&
+            'bg-chat-accent/15 ring-1 ring-chat-accent/40',
         ]"
       >
         <div
           class="group/msg relative flex max-w-full items-center gap-1"
-          :class="cluster.isOwn && 'flex-row-reverse'"
+          :class="[
+            cluster.isOwn && 'flex-row-reverse',
+            editingMessageId === message.id && 'w-full',
+          ]"
         >
-          <!-- Khung sửa thay chỗ bong bóng, giữ nguyên vị trí để không nhảy layout. -->
+          <!-- Khung sửa thay chỗ bong bóng nhưng giãn hết bề ngang cho phép: bong bóng co theo
+               chữ, còn sửa tin dài thì cần đủ chỗ để đọc lại cả câu. -->
           <div
             v-if="editingMessageId === message.id"
-            class="w-full rounded-2xl border border-chat-accent/40 bg-white p-2 ring-4 ring-chat-accent/10"
+            class="w-full rounded-2xl bg-white p-2 ring-2 ring-chat-accent/50"
           >
             <textarea
+              :ref="(el) => fitEditBox(el as HTMLTextAreaElement | null)"
               v-model="editingContent"
-              rows="2"
+              rows="1"
               autofocus
-              class="w-full resize-none border-0 bg-transparent px-2 py-1 text-sm text-gray-900 outline-none"
+              class="gdtd-chat-scroll block w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-relaxed text-gray-900 outline-none"
               @keydown="onEditKeydown"
             />
             <div class="mt-1 flex items-center justify-end gap-2">
               <button
                 type="button"
-                class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100"
+                class="rounded-full px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
                 @click="cancelEditMessage"
               >
                 Huỷ
               </button>
               <button
                 type="button"
-                class="rounded-lg bg-chat-accent-strong px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:brightness-110 disabled:opacity-50"
+                class="rounded-full bg-chat-accent-strong px-3.5 py-1.5 text-xs font-medium text-white transition-colors hover:brightness-110 disabled:opacity-50"
                 :disabled="!editingContent.trim()"
                 @click="saveEditMessage"
               >
@@ -255,15 +276,11 @@ const onEditKeydown = (event: KeyboardEvent) => {
           </div>
 
           <template v-else>
+            <!-- Tệp đứng riêng dưới bong bóng chữ chứ không nằm trong khung bong bóng: ảnh và tệp đã
+                 tự có hình khối, bọc thêm một lớp nền chỉ làm rối. -->
             <div
-              class="w-fit max-w-full rounded-2xl px-3 py-2 text-sm leading-relaxed wrap-break-word chat-touch:select-none"
-              :class="
-                message.isDeleted
-                  ? 'border border-dashed border-gray-200 bg-white italic text-gray-600'
-                  : cluster.isOwn
-                    ? 'border border-gray-200 bg-white text-gray-900'
-                    : 'bg-chat-accent/10 text-gray-900'
-              "
+              class="flex min-w-0 max-w-full flex-col gap-1 chat-touch:select-none"
+              :class="cluster.isOwn ? 'items-end' : 'items-start'"
               @touchstart.passive="onTouchStart($event, message)"
               @touchmove.passive="onTouchMove"
               @touchend="cancelPress"
@@ -271,60 +288,98 @@ const onEditKeydown = (event: KeyboardEvent) => {
               @click.capture="onClickCapture"
               @contextmenu.prevent
             >
-              <p v-if="message.isDeleted" :title="`Thu hồi lúc ${formatDateTime(message.deletedAtUtc || '')}`">
-                Tin nhắn đã bị thu hồi
-              </p>
+              <div
+                v-if="hasBubble(message)"
+                class="w-fit max-w-full rounded-2xl px-3 py-2 text-sm leading-relaxed wrap-break-word"
+                :class="
+                  message.isDeleted
+                    ? 'border border-dashed border-gray-200 bg-white italic text-gray-600'
+                    : cluster.isOwn
+                      ? 'bg-chat-accent-strong text-white'
+                      : 'bg-gray-100 text-gray-900'
+                "
+              >
+                <p v-if="message.isDeleted" :title="`Thu hồi lúc ${formatDateTime(message.deletedAtUtc || '')}`">
+                  Tin nhắn đã bị thu hồi
+                </p>
 
-              <template v-else>
+                <template v-else>
+                  <p
+                    v-if="message.forwardedFromUserId"
+                    class="mb-1 flex items-center gap-1 text-[10px]"
+                    :class="cluster.isOwn ? 'text-white/75' : 'text-gray-500'"
+                  >
+                    <WidgetIcon name="Forward" :size="10" />
+                    {{ forwardedFromLabel(message) }}
+                  </p>
+
+                  <button
+                    v-if="message.replyTo"
+                    type="button"
+                    class="flex w-full items-stretch gap-2 rounded-xl p-2 text-left transition-colors"
+                    :class="[
+                      message.content && 'mb-1.5',
+                      cluster.isOwn
+                        ? 'bg-white/15 hover:bg-white/25'
+                        : 'bg-gray-900/5 hover:bg-gray-900/10',
+                    ]"
+                    @click="jumpToMessage(message.replyTo.id)"
+                  >
+                    <span
+                      class="w-0.5 shrink-0 rounded-full"
+                      :class="cluster.isOwn ? 'bg-white/70' : 'bg-chat-accent-strong'"
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span
+                        class="flex items-center gap-1 text-[11px] font-semibold"
+                        :class="cluster.isOwn ? 'text-white' : 'text-chat-accent-strong'"
+                      >
+                        <WidgetIcon name="CornerUpLeft" :size="11" />
+                        {{ message.replyTo.senderName }}
+                      </span>
+                      <span
+                        class="mt-0.5 block truncate text-[11px]"
+                        :class="cluster.isOwn ? 'text-white/80' : 'text-gray-600'"
+                      >
+                        {{
+                          message.replyTo.isDeleted
+                            ? "Tin nhắn đã bị thu hồi"
+                            : message.replyTo.content
+                        }}
+                      </span>
+                    </span>
+                  </button>
+
+                  <p v-if="message.content">
+                    <span
+                      v-for="(segment, index) in contentSegments(message)"
+                      :key="index"
+                      :class="
+                        segment.isMention && [
+                          'font-semibold',
+                          cluster.isOwn ? 'text-white' : 'text-chat-accent-strong',
+                        ]
+                      "
+                      >{{ segment.text }}</span
+                    >
+                  </p>
+                </template>
+              </div>
+
+              <template v-if="!message.isDeleted">
                 <p
-                  v-if="message.forwardedFromUserId"
-                  class="mb-1 flex items-center gap-1 text-[10px] italic text-gray-500"
+                  v-if="message.forwardedFromUserId && !hasBubble(message)"
+                  class="flex items-center gap-1 px-1 text-[10px] text-gray-500"
                 >
                   <WidgetIcon name="Forward" :size="10" />
                   {{ forwardedFromLabel(message) }}
-                </p>
-
-                <button
-                  v-if="message.replyTo"
-                  type="button"
-                  class="mb-1.5 flex w-full items-stretch gap-2 rounded-xl bg-gray-900/5 p-2 text-left transition-colors hover:bg-gray-900/10"
-                  @click="jumpToMessage(message.replyTo.id)"
-                >
-                  <span class="w-0.5 shrink-0 rounded-full bg-chat-accent" />
-                  <span class="min-w-0 flex-1">
-                    <span
-                      class="flex items-center gap-1 text-[11px] font-semibold text-chat-accent-strong"
-                    >
-                      <WidgetIcon name="CornerUpLeft" :size="11" />
-                      {{ message.replyTo.senderName }}
-                    </span>
-                    <span class="mt-0.5 block truncate text-[11px] text-gray-600">
-                      {{
-                        message.replyTo.isDeleted
-                          ? "Tin nhắn đã bị thu hồi"
-                          : message.replyTo.content
-                      }}
-                    </span>
-                  </span>
-                </button>
-
-                <p v-if="message.content">
-                  <span
-                    v-for="(segment, index) in contentSegments(message)"
-                    :key="index"
-                    :class="
-                      segment.isMention &&
-                      'bg-chat-accent/15 px-1 font-semibold text-chat-accent-strong'
-                    "
-                    >{{ segment.text }}</span
-                  >
                 </p>
 
                 <template v-for="file in message.attachments" :key="file.id">
                   <button
                     v-if="file.contentType.startsWith('image/')"
                     type="button"
-                    class="mt-1.5 block cursor-zoom-in overflow-hidden rounded-xl"
+                    class="block max-w-full cursor-zoom-in overflow-hidden rounded-2xl ring-1 ring-gray-900/5"
                     :aria-label="`Xem ảnh ${file.fileName}`"
                     @click="openImage(file)"
                   >
@@ -333,7 +388,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                       :alt="file.fileName"
                       :style="imageBox(file)"
                       loading="lazy"
-                      class="max-h-52 w-auto max-w-full rounded-xl object-cover"
+                      class="max-h-52 w-auto max-w-full object-cover"
                     />
                   </button>
 
@@ -342,18 +397,18 @@ const onEditKeydown = (event: KeyboardEvent) => {
                     :href="file.fileUrl"
                     target="_blank"
                     rel="noopener"
-                    class="mt-1.5 flex items-center gap-2.5 rounded-xl bg-white px-2.5 py-2 ring-1 ring-gray-200 transition-colors hover:bg-gray-50"
+                    class="flex max-w-full items-center gap-2.5 rounded-2xl border border-gray-200 bg-white py-1.5 pl-1.5 pr-3.5 transition-colors hover:border-chat-accent/40 hover:bg-chat-accent/5"
                   >
-                    <WidgetIcon
-                      name="FileText"
-                      :size="18"
-                      class="text-chat-accent-strong"
-                    />
+                    <span
+                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-chat-accent/10 text-chat-accent-strong"
+                    >
+                      <WidgetIcon name="FileText" :size="17" />
+                    </span>
                     <span class="min-w-0">
-                      <span class="block truncate text-xs font-semibold text-gray-800">
+                      <span class="block truncate text-xs font-medium text-gray-900">
                         {{ file.fileName }}
                       </span>
-                      <span class="block text-[11px] text-gray-600">
+                      <span class="block text-[11px] text-gray-600 tabular-nums">
                         {{ formatBytes(file.sizeBytes, 0) }}
                       </span>
                     </span>
@@ -366,7 +421,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
             <button
               v-if="canOpenActions(message)"
               type="button"
-              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-800 focus-visible:opacity-100 group-hover/msg:opacity-100"
+              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 opacity-0 transition-opacity hover:bg-chat-accent/10 hover:text-chat-accent-strong focus-visible:opacity-100 group-hover/msg:opacity-100"
               aria-label="Thao tác với tin nhắn"
               @click="openActionsFromButton($event, message)"
             >
@@ -400,7 +455,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
 
         <p
           v-if="isPinned(message) && !message.isDeleted"
-          class="mt-0.5 flex items-center gap-1 px-1 text-[11px] font-medium text-amber-600"
+          class="mt-0.5 flex items-center gap-1 px-1 text-[11px] font-medium text-chat-accent-strong"
         >
           <WidgetIcon name="Pin" :size="10" />
           Đã ghim

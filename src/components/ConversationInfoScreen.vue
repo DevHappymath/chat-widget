@@ -246,7 +246,7 @@ const onLeave = async () => {
           <button
             v-if="isGroupAdmin"
             type="button"
-            class="inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-chat-accent-strong"
+            class="inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
             aria-label="Sửa thông tin nhóm"
             @click="startEdit"
           >
@@ -264,9 +264,7 @@ const onLeave = async () => {
     </div>
 
     <div v-if="!group && partner" class="border-t border-gray-100 px-4 py-4">
-      <p class="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">
-        Thông tin liên hệ
-      </p>
+      <p class="mb-2.5 text-xs font-medium text-gray-500">Thông tin liên hệ</p>
       <dl class="space-y-2 text-sm">
         <div class="flex items-start gap-2.5">
           <WidgetIcon name="Mail" :size="15" class="mt-0.5 text-gray-500" />
@@ -285,13 +283,11 @@ const onLeave = async () => {
 
     <div v-else-if="group" class="border-t border-gray-100 px-4 py-4">
       <div class="mb-2 flex items-center justify-between gap-2">
-        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500">
-          Thành viên
-        </p>
+        <p class="text-xs font-medium text-gray-500">Thành viên</p>
         <button
           v-if="isGroupAdmin"
           type="button"
-          class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-chat-accent-strong transition-colors hover:bg-chat-accent/10"
+          class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-chat-accent-strong transition-colors hover:bg-chat-accent/10"
           @click="view = 'add-members'"
         >
           <WidgetIcon name="UserPlus" :size="14" />
@@ -317,14 +313,10 @@ const onLeave = async () => {
             </span>
             <span class="block truncate text-[11px] text-gray-600">
               {{ member.employeeCode || member.email }}
+              <template v-if="member.role === ParticipantRole.Admin">
+                · Quản trị nhóm
+              </template>
             </span>
-          </span>
-
-          <span
-            v-if="member.role === ParticipantRole.Admin"
-            class="shrink-0 rounded-full bg-chat-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-chat-accent-strong"
-          >
-            Quản trị
           </span>
 
           <button

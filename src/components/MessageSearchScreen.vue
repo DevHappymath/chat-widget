@@ -109,7 +109,7 @@ const onPick = async (message: ChatMessage) => {
                   messageSearchKeyword,
                 )"
                 :key="index"
-                :class="segment.isMatch && 'bg-amber-100 font-semibold text-gray-900'"
+                :class="segment.isMatch && 'bg-chat-accent/15 font-semibold text-gray-900'"
                 >{{ segment.text }}</span
               >
             </span>
