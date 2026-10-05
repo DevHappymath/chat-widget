@@ -6,7 +6,7 @@ import { useWidgetToast } from "../core/store/useWidgetToast";
 import { extractErrorMessage } from "../utils/error";
 import WidgetIcon from "./WidgetIcon.vue";
 
-const { activeConversation, isGroupAdmin, createInviteLink, revokeInviteLink } = useChatStore();
+const { activeConversation, canManageGroup, createInviteLink, revokeInviteLink } = useChatStore();
 
 const { ask } = useWidgetConfirm();
 const toast = useWidgetToast();
@@ -121,7 +121,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section
-    v-if="shareText || isGroupAdmin"
+    v-if="shareText || canManageGroup"
     class="border-t border-gray-100 px-4 py-4"
     aria-label="Liên kết tham gia nhóm"
   >
@@ -136,7 +136,7 @@ onBeforeUnmount(() => {
           Đang bật
         </span>
 
-        <div v-if="isGroupAdmin" ref="menuRef" class="relative">
+        <div v-if="canManageGroup" ref="menuRef" class="relative">
           <button
             type="button"
             class="inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors"
@@ -241,7 +241,7 @@ onBeforeUnmount(() => {
 
       <p class="mt-2.5 flex gap-1.5 text-[11px] leading-relaxed text-gray-600">
         <WidgetIcon name="Info" :size="13" class="mt-px text-gray-400" />
-        Ai có liên kết đều tự vào được nhóm. Học sinh chỉ vào được khi do quản trị nhóm phụ trách.
+        Ai có liên kết đều tự vào được nhóm. Học sinh chỉ vào được khi do trưởng nhóm hoặc phó nhóm phụ trách.
       </p>
     </template>
 

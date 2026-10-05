@@ -19,6 +19,7 @@ export type {
   ChatParticipant,
   ConversationAttachment,
   ConversationAttachmentList,
+  ConversationDissolved,
   MessageAttachment,
   MessagePinChanged,
   MessageReaction,

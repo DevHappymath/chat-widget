@@ -25,6 +25,7 @@ import type {
   UpdateConversationSettingsCommand,
   UpdateGroupConversationCommand,
   UpdateMessageCommand,
+  UpdateParticipantRoleCommand,
   UploadedFile,
 } from "../../types/chat";
 import { useHttp } from "../http";
@@ -71,9 +72,25 @@ export const conversationApi = {
       `/conversations/${id}/members/${userId}`,
     ),
 
+  /** Chỉ trưởng nhóm gọi được. */
+  updateParticipantRole: (id: string, userId: string, command: UpdateParticipantRoleCommand) =>
+    useHttp().put<ApiEnvelope<ChatConversation>>(
+      `/conversations/${id}/members/${userId}/role`,
+      command,
+    ),
+
+  /** Chỉ trưởng nhóm gọi được; trưởng nhóm cũ thành phó nhóm. */
+  transferLeadership: (id: string, userId: string) =>
+    useHttp().post<ApiEnvelope<ChatConversation>>(
+      `/conversations/${id}/members/${userId}/transfer-leader`,
+    ),
+
   leave: (id: string) => useHttp().post<ApiEnvelope<null>>(`/conversations/${id}/leave`),
 
-  /** Đã bật thì tạo mã mới, liên kết cũ hết hiệu lực ngay. Chỉ quản trị nhóm gọi được. */
+  /** Mọi thành viên cùng rời nhóm; chỉ trưởng nhóm gọi được. */
+  dissolve: (id: string) => useHttp().post<ApiEnvelope<null>>(`/conversations/${id}/dissolve`),
+
+  /** Đã bật thì tạo mã mới, liên kết cũ hết hiệu lực ngay. Chỉ trưởng hoặc phó nhóm gọi được. */
   createInviteLink: (id: string) =>
     useHttp().post<ApiEnvelope<ChatConversation>>(`/conversations/${id}/invite`),
 

@@ -27,7 +27,10 @@ export type ChatAudience = (typeof ChatAudience)[keyof typeof ChatAudience];
 
 export const ParticipantRole = {
   Member: 1,
+  /** Trưởng nhóm, mỗi nhóm một người. */
   Admin: 2,
+  /** Phó nhóm: quản lý nhóm thay trưởng nhóm nhưng không động được tới trưởng hay phó nhóm khác. */
+  Deputy: 3,
 } as const;
 export type ParticipantRole =
   (typeof ParticipantRole)[keyof typeof ParticipantRole];
@@ -156,6 +159,15 @@ export interface ChatConversation {
   updatedAtUtc: string;
 }
 
+/** Payload của event ConversationDissolved, gửi tới mọi người vừa còn trong nhóm. */
+export interface ConversationDissolved {
+  conversationId: string;
+  name?: string | null;
+  dissolvedByUserId: string;
+  dissolvedByName: string;
+  dissolvedAtUtc: string;
+}
+
 /** Người chưa vào nhóm chỉ thấy tên, ảnh và số thành viên, không thấy danh sách. */
 export interface GroupInvitePreview {
   conversationId: string;
@@ -205,7 +217,7 @@ export interface CreateDirectConversationCommand {
 export interface CreateGroupConversationCommand {
   name: string;
   avatarUrl?: string | null;
-  /** Không cần chứa người tạo; server tự thêm với vai trò Admin. Tối thiểu 2 người. */
+  /** Không cần chứa người tạo; server tự thêm làm trưởng nhóm. Tối thiểu 2 người. */
   memberIds: string[];
 }
 
@@ -216,6 +228,11 @@ export interface UpdateGroupConversationCommand {
 
 export interface AddParticipantsCommand {
   userIds: string[];
+}
+
+/** Chỉ bổ nhiệm hoặc bỏ chức phó nhóm; trưởng nhóm không đổi qua đường này. */
+export interface UpdateParticipantRoleCommand {
+  role: typeof ParticipantRole.Deputy | typeof ParticipantRole.Member;
 }
 
 /** Cài đặt riêng của từng người; field bỏ trống là giữ nguyên. */

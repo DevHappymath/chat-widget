@@ -8,6 +8,7 @@ export const HubEvent = {
   ConversationCreated: "ConversationCreated",
   ConversationUpdated: "ConversationUpdated",
   ParticipantsChanged: "ParticipantsChanged",
+  ConversationDissolved: "ConversationDissolved",
   ConversationRead: "ConversationRead",
 
   MessageReceived: "MessageReceived",

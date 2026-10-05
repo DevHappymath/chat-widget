@@ -16,6 +16,7 @@ import {
   type ChatMessage,
   type ChatParticipant,
   type ConversationAttachment,
+  type ConversationDissolved,
   type ConversationRead,
   type MessagePinChanged,
   type MessageReactionsChanged,
@@ -157,6 +158,8 @@ const isLoadingMessages = ref(false);
 const unreadFallback = ref(0);
 /** Hội thoại đã cộng vào badge trong phiên này, để một hội thoại không bị cộng hai lần. */
 const countedUnreadIds = new Set<string>();
+/** Nhóm chính tab này đang giải tán: tự báo sau khi gọi xong, event quay về không báo lặp. */
+const dissolvingIds = new Set<string>();
 
 let isSubscribed = false;
 let badgeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -254,14 +257,32 @@ export const useChatStore = () => {
       ) ?? null,
   );
 
-  /** Quản trị nhóm được xoá tin của thành viên khác; hội thoại 1-1 không có vai trò này. */
-  const isGroupAdmin = computed(() =>
-    Boolean(
-      activeConversation.value &&
-        isGroup(activeConversation.value) &&
-        myParticipant.value?.role === ParticipantRole.Admin,
-    ),
+  const myGroupRole = computed(() =>
+    activeConversation.value && isGroup(activeConversation.value)
+      ? (myParticipant.value?.role ?? null)
+      : null,
   );
+
+  /** Chỉ trưởng nhóm bổ nhiệm phó nhóm, chuyển chức và giải tán được nhóm. */
+  const isGroupLeader = computed(() => myGroupRole.value === ParticipantRole.Admin);
+
+  /** Trưởng hoặc phó nhóm; hội thoại 1-1 không có vai trò này. */
+  const canManageGroup = computed(
+    () =>
+      myGroupRole.value === ParticipantRole.Admin ||
+      myGroupRole.value === ParticipantRole.Deputy,
+  );
+
+  /** Phó nhóm chỉ xoá được thành viên thường; không ai tự xoá mình, muốn ra thì rời nhóm. */
+  const canRemoveMember = (member: ChatParticipant) =>
+    canManageGroup.value &&
+    member.userId.toLowerCase() !== currentUserId.value &&
+    (isGroupLeader.value || member.role === ParticipantRole.Member);
+
+  const canChangeRoleOf = (member: ChatParticipant) =>
+    isGroupLeader.value &&
+    member.userId.toLowerCase() !== currentUserId.value &&
+    member.role !== ParticipantRole.Admin;
 
   /** Tin gửi lạc quan chưa có id thật trên server nên chưa sửa hay xoá được. */
   const isLocalMessage = (message: ChatMessage) =>
@@ -278,7 +299,7 @@ export const useChatStore = () => {
     !message.isDeleted &&
     message.type !== MessageType.System &&
     !isLocalMessage(message) &&
-    (isOwnMessage(message) || isGroupAdmin.value);
+    (isOwnMessage(message) || canManageGroup.value);
 
   const hasMoreMessages = computed(() =>
     activeConversationId.value
@@ -804,7 +825,7 @@ export const useChatStore = () => {
   };
 
   /**
-   * Chỉ quản trị nhóm gọi được. Backend bỏ qua field để trống nên không xoá được ảnh nhóm
+   * Chỉ trưởng hoặc phó nhóm gọi được. Backend bỏ qua field để trống nên không xoá được ảnh nhóm
    * bằng đường này, chỉ thay bằng ảnh khác.
    */
   const updateGroupInfo = async (patch: UpdateGroupConversationCommand) => {
@@ -815,7 +836,7 @@ export const useChatStore = () => {
     upsertConversation(res.data.data);
   };
 
-  /** Chỉ quản trị nhóm gọi được; backend chặn lại bằng LoadGroupForAdminAsync. */
+  /** Chỉ trưởng hoặc phó nhóm gọi được; backend chặn lại bằng LoadGroupForManagerAsync. */
   const addParticipants = async (userIds: string[]) => {
     const conversationId = activeConversationId.value;
     if (!conversationId || !userIds.length) return;
@@ -824,7 +845,7 @@ export const useChatStore = () => {
     upsertConversation(res.data.data);
   };
 
-  /** Chỉ quản trị nhóm gọi được; người bị xoá vẫn nhận event để tự gỡ hội thoại. */
+  /** Chỉ trưởng hoặc phó nhóm gọi được; người bị xoá vẫn nhận event để tự gỡ hội thoại. */
   const removeParticipant = async (userId: string) => {
     const conversationId = activeConversationId.value;
     if (!conversationId) return;
@@ -833,10 +854,57 @@ export const useChatStore = () => {
     upsertConversation(res.data.data);
   };
 
+  const updateParticipantRole = async (
+    userId: string,
+    role: typeof ParticipantRole.Deputy | typeof ParticipantRole.Member,
+  ) => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId) return;
+
+    const res = await conversationApi.updateParticipantRole(conversationId, userId, { role });
+    upsertConversation(res.data.data);
+  };
+
+  const transferLeadership = async (userId: string) => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId) return;
+
+    const res = await conversationApi.transferLeadership(conversationId, userId);
+    upsertConversation(res.data.data);
+  };
+
   /** Gỡ khỏi danh sách ngay, không chờ event ParticipantsChanged quay về. */
   const leaveConversation = async (conversationId: string) => {
     await conversationApi.leave(conversationId);
     removeConversation(conversationId);
+  };
+
+  const dissolveConversation = async (conversationId: string) => {
+    dissolvingIds.add(conversationId);
+    try {
+      await conversationApi.dissolve(conversationId);
+      removeConversation(conversationId);
+    } finally {
+      dissolvingIds.delete(conversationId);
+    }
+  };
+
+  const applyConversationDissolved = (payload: ConversationDissolved) => {
+    const conversation = findConversation(payload.conversationId);
+    const name = payload.name || (conversation ? titleOf(conversation) : "");
+
+    if (conversation) removeConversation(payload.conversationId);
+    else scheduleBadgeRefresh();
+
+    if (payload.dissolvedByUserId.toLowerCase() !== currentUserId.value) {
+      toast.info(name ? `Nhóm "${name}" đã bị giải tán` : "Một nhóm của bạn đã bị giải tán");
+      return;
+    }
+
+    // Tự giải tán ở tab khác thì vẫn báo; còn ở tab này thì màn giải tán đã tự báo rồi.
+    if (conversation && !dissolvingIds.has(payload.conversationId)) {
+      toast.success(name ? `Đã giải tán nhóm "${name}"` : "Đã giải tán nhóm");
+    }
   };
 
   const createInviteLink = async () => {
@@ -1214,6 +1282,10 @@ export const useChatStore = () => {
       else removeConversation(payload.id);
     });
 
+    onHubEvent(HubEvent.ConversationDissolved, (payload: ConversationDissolved) =>
+      applyConversationDissolved(payload),
+    );
+
     onHubEvent(HubEvent.ConversationRead, (payload: ConversationRead) => {
       const conversation = findConversation(payload.conversationId);
 
@@ -1364,7 +1436,8 @@ export const useChatStore = () => {
     actionSheetMessage,
     actionSheetAnchor,
     highlightedMessageId,
-    isGroupAdmin,
+    isGroupLeader,
+    canManageGroup,
     pinnedMessages,
     isPinnedBarExpanded,
     messageSearchKeyword,
@@ -1388,6 +1461,8 @@ export const useChatStore = () => {
     isOwnMessage,
     canEditMessage,
     canDeleteMessage,
+    canRemoveMember,
+    canChangeRoleOf,
     canPinMessage,
     canForwardMessage,
     isPinned,
@@ -1432,7 +1507,10 @@ export const useChatStore = () => {
     updateGroupInfo,
     addParticipants,
     removeParticipant,
+    updateParticipantRole,
+    transferLeadership,
     leaveConversation,
+    dissolveConversation,
     createInviteLink,
     revokeInviteLink,
     joinByInvite,
