@@ -7,6 +7,7 @@ import ContactPicker from "./ContactPicker.vue";
 import ConversationInfoScreen from "./ConversationInfoScreen.vue";
 import ConversationList from "./ConversationList.vue";
 import ForwardScreen from "./ForwardScreen.vue";
+import JoinGroupScreen from "./JoinGroupScreen.vue";
 import MediaScreen from "./MediaScreen.vue";
 import MessageSearchScreen from "./MessageSearchScreen.vue";
 import MessageThread from "./MessageThread.vue";
@@ -27,6 +28,7 @@ const HEADINGS: Record<WidgetView, string> = {
   search: "Tìm tin nhắn",
   forward: "Chuyển tiếp",
   media: "Ảnh và tệp",
+  join: "Tham gia nhóm",
 };
 
 // Danh bạ của học sinh chỉ gồm giáo viên phụ trách, gọi đúng tên cho họ khỏi tìm người khác.
@@ -96,6 +98,7 @@ const subheading = computed(() => {
     <MessageSearchScreen v-else-if="view === 'search'" />
     <ForwardScreen v-else-if="view === 'forward'" />
     <MediaScreen v-else-if="view === 'media'" />
+    <JoinGroupScreen v-else-if="view === 'join'" />
     <MessageThread v-else />
 
     <WidgetToaster />

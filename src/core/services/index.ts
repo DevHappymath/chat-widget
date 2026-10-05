@@ -11,6 +11,7 @@ import type {
   CreateDirectConversationCommand,
   CreateGroupConversationCommand,
   ForwardMessageCommand,
+  GroupInvitePreview,
   MarkConversationReadCommand,
   MessageHistory,
   MessageHistoryRequest,
@@ -71,6 +72,23 @@ export const conversationApi = {
     ),
 
   leave: (id: string) => useHttp().post<ApiEnvelope<null>>(`/conversations/${id}/leave`),
+
+  /** Đã bật thì tạo mã mới, liên kết cũ hết hiệu lực ngay. Chỉ quản trị nhóm gọi được. */
+  createInviteLink: (id: string) =>
+    useHttp().post<ApiEnvelope<ChatConversation>>(`/conversations/${id}/invite`),
+
+  revokeInviteLink: (id: string) =>
+    useHttp().delete<ApiEnvelope<ChatConversation>>(`/conversations/${id}/invite`),
+
+  getInvitePreview: (token: string) =>
+    useHttp().get<ApiEnvelope<GroupInvitePreview>>(
+      `/conversations/invites/${encodeURIComponent(token)}`,
+    ),
+
+  joinByInvite: (token: string) =>
+    useHttp().post<ApiEnvelope<ChatConversation>>(
+      `/conversations/invites/${encodeURIComponent(token)}/join`,
+    ),
 
   updateSettings: (id: string, command: UpdateConversationSettingsCommand) =>
     useHttp().patch<ApiEnvelope<ChatConversation>>(

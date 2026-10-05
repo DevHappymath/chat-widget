@@ -82,7 +82,8 @@ export type WidgetView =
   | "add-members"
   | "search"
   | "forward"
-  | "media";
+  | "media"
+  | "join";
 
 /** Mỗi màn chỉ có đúng một màn cha, đủ để nút quay lại không cần giữ ngăn xếp. */
 const PARENT_VIEW: Record<WidgetView, WidgetView> = {
@@ -95,6 +96,7 @@ const PARENT_VIEW: Record<WidgetView, WidgetView> = {
   search: "thread",
   forward: "thread",
   media: "info",
+  join: "contacts",
 };
 
 // ─── State: một bản duy nhất cho cả tab ───────────────────────────────────────
@@ -837,6 +839,30 @@ export const useChatStore = () => {
     removeConversation(conversationId);
   };
 
+  const createInviteLink = async () => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId) return;
+
+    const res = await conversationApi.createInviteLink(conversationId);
+    upsertConversation(res.data.data);
+  };
+
+  const revokeInviteLink = async () => {
+    const conversationId = activeConversationId.value;
+    if (!conversationId) return;
+
+    const res = await conversationApi.revokeInviteLink(conversationId);
+    upsertConversation(res.data.data);
+  };
+
+  /** Đã ở trong nhóm thì backend trả luôn hội thoại, nên dán lại liên kết cũ vẫn mở được nhóm. */
+  const joinByInvite = async (token: string) => {
+    const res = await conversationApi.joinByInvite(token);
+    upsertConversation(res.data.data);
+    await selectConversation(res.data.data.id);
+    return res.data.data;
+  };
+
   const deleteMessage = async (messageId: string) => {
     try {
       const res = await messageApi.remove(messageId);
@@ -1407,5 +1433,8 @@ export const useChatStore = () => {
     addParticipants,
     removeParticipant,
     leaveConversation,
+    createInviteLink,
+    revokeInviteLink,
+    joinByInvite,
   };
 };

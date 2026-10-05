@@ -16,8 +16,9 @@ const pick = (person: AppUser) =>
 
 <template>
   <PeoplePicker @pick="pick">
-    <template v-if="!isStudent" #top>
+    <template #top>
       <button
+        v-if="!isStudent"
         type="button"
         class="flex w-full items-center gap-3 rounded-xl border border-dashed border-gray-200 px-3 py-2.5 text-left transition-colors hover:border-chat-accent hover:bg-chat-accent/5"
         @click="view = 'new-group'"
@@ -30,6 +31,24 @@ const pick = (person: AppUser) =>
         <span class="min-w-0 flex-1">
           <span class="block text-sm font-semibold text-gray-800">Tạo nhóm mới</span>
           <span class="block text-xs text-gray-600">Cần ít nhất 2 thành viên ngoài bạn</span>
+        </span>
+        <WidgetIcon name="ChevronRight" :size="16" class="text-gray-400" />
+      </button>
+
+      <button
+        type="button"
+        class="flex w-full items-center gap-3 rounded-xl border border-dashed border-gray-200 px-3 py-2.5 text-left transition-colors hover:border-chat-accent hover:bg-chat-accent/5"
+        :class="!isStudent && 'mt-2'"
+        @click="view = 'join'"
+      >
+        <span
+          class="flex h-9 w-9 items-center justify-center rounded-full bg-chat-accent/10 text-chat-accent-strong"
+        >
+          <WidgetIcon name="Link" :size="17" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-semibold text-gray-800">Tham gia nhóm bằng liên kết</span>
+          <span class="block text-xs text-gray-600">Dán liên kết mời bạn nhận được</span>
         </span>
         <WidgetIcon name="ChevronRight" :size="16" class="text-gray-400" />
       </button>

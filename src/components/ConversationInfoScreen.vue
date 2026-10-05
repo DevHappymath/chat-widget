@@ -14,6 +14,7 @@ import { presenceLabel } from "../utils/chat";
 import { extractErrorMessage } from "../utils/error";
 import { formatBytes } from "../utils/format";
 import WidgetAvatar from "./WidgetAvatar.vue";
+import InviteLinkSection from "./InviteLinkSection.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const {
@@ -331,6 +332,8 @@ const onLeave = async () => {
         </li>
       </ul>
     </div>
+
+    <InviteLinkSection v-if="group" />
 
     <div class="border-t border-gray-100 px-4 py-4">
       <button

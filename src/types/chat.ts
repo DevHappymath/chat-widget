@@ -148,8 +148,24 @@ export interface ChatConversation {
   mutedUntilUtc?: string | null;
   isPinned: boolean;
   participants: ChatParticipant[];
+  /** Null khi nhóm đang tắt liên kết mời, hoặc là hội thoại 1-1. */
+  inviteToken?: string | null;
+  /** Null khi máy chủ chưa khai địa chỉ trang chat - lúc đó chỉ chia sẻ được mã mời. */
+  inviteUrl?: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
+}
+
+/** Người chưa vào nhóm chỉ thấy tên, ảnh và số thành viên, không thấy danh sách. */
+export interface GroupInvitePreview {
+  conversationId: string;
+  name?: string | null;
+  avatarUrl?: string | null;
+  memberCount: number;
+  isMember: boolean;
+  canJoin: boolean;
+  /** Lý do chưa tham gia được, hiện nguyên văn cho người dùng. */
+  reason?: string | null;
 }
 
 export interface ConversationRead {
