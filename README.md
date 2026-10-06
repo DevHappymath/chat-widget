@@ -132,6 +132,8 @@ interface ChatWidgetConfig {
   position?: "bottom-right" | "bottom-left";
   offset?: { x: number; y: number };
   zIndex?: number;
+  /** Số tin chưa đọc trên tiêu đề tab và trên favicon, mặc định bật */
+  tabIndicator?: boolean;
 }
 ```
 
@@ -157,6 +159,13 @@ lại; giữ cứng token là tab mở cả ngày sẽ mất kết nối vĩnh v
    lúc mất mạng thì mất luôn.
 5. Đọc tin ở bất kỳ tab nào cũng tắt badge ở mọi tab, nhờ backend gửi `ConversationRead` cho
    cả chính người đọc.
+6. Tin mới khi panel đang đóng hiện thành thẻ nổi ngay trên bong bóng, mỗi hội thoại một thẻ,
+   tối đa ba thẻ, tự tắt sau 6 giây (tab ẩn thì chưa đếm giờ). Bấm thẻ là mở đúng hội thoại.
+   Tin hệ thống và hội thoại đang tắt thông báo không hiện thẻ.
+7. Tiêu đề tab của site có thêm `(n)` là số tin chưa đọc, favicon có số đỏ ở góc; người dùng đang ở
+   tab khác thì tiêu đề nhấp nháy "n tin nhắn mới". Site đổi tiêu đề hay favicon khi chuyển
+   trang thì widget tự gắn lại. Tắt bằng `tabIndicator: false` nếu site đã dùng tiêu đề để báo
+   việc khác.
 
 ## Điểm cần biết trước khi sửa
 
@@ -174,6 +183,14 @@ lại; giữ cứng token là tab mở cả ngày sẽ mất kết nối vĩnh v
 - **Nhảy tới một tin cũ kéo lùi tối đa 5 trang lịch sử** (`MAX_REVEAL_PAGES`) vì backend chưa có
   endpoint lấy lịch sử quanh một tin.
 - Widget chỉ chạy phía client. Luôn bọc `<ClientOnly>`.
+- **Tin đến lúc tab ẩn vẫn tính là chưa đọc**, kể cả khi panel mở đúng hội thoại đó; quay lại
+  tab mới đánh dấu đã đọc.
+- **Số đỏ trên favicon được vẽ lại trên canvas.** Favicon nằm ở domain khác mà không mở CORS
+  thì trình duyệt chặn ghép ảnh, lúc có tin chưa đọc favicon chỉ còn số đỏ trên nền trống.
+- **Hết tin chưa đọc thì thẻ favicon của widget được trỏ về icon gốc chứ không gỡ đi**, vì Chrome
+  không tự vẽ lại icon cũ khi một thẻ `<link rel="icon">` bị gỡ.
+- `core/tabAttention.ts` giống hệt `chat.gdtd.vn-fe/utils/tab-attention.ts`; sửa một bên thì
+  sửa cả bên kia.
 
 ## Còn thiếu so với kế hoạch
 

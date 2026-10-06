@@ -18,6 +18,11 @@ export interface ChatWidgetConfig {
   /** Khoảng cách tới mép màn hình, tính bằng px. */
   offset?: { x: number; y: number };
   zIndex?: number;
+  /**
+   * Hiện số tin chưa đọc trên tiêu đề tab và thành số đỏ trên favicon. Mặc định bật; tắt khi site
+   * đã tự quản lý tiêu đề hoặc favicon để báo việc khác.
+   */
+  tabIndicator?: boolean;
 }
 
 type ResolvedConfig = Required<Omit<ChatWidgetConfig, "hubUrl" | "onUnauthorized">> &
@@ -30,6 +35,7 @@ export const configureChatWidget = (input: ChatWidgetConfig) => {
     position: "bottom-right",
     offset: { x: 24, y: 24 },
     zIndex: 2147483000,
+    tabIndicator: true,
     ...input,
     apiBase: input.apiBase.replace(/\/+$/, ""),
   };

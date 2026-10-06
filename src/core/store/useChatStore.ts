@@ -31,10 +31,18 @@ import {
   type UpdateGroupConversationCommand,
   type UploadedFile,
 } from "../../types/chat";
-import { applyReactionOp, keepReactionOrder, type ReactionOp } from "../../utils/chat";
+import {
+  applyReactionOp,
+  isMutedNow,
+  keepReactionOrder,
+  messagePreview,
+  type ReactionOp,
+} from "../../utils/chat";
 import { extractErrorMessage } from "../../utils/error";
 import { onHubEvent, onHubReconnected, sendTyping, startHub } from "../hub";
 import { conversationApi, messageApi, widgetApi } from "../services";
+import { announceTabMessage } from "../tabAttention";
+import { useMessageAlerts } from "./useMessageAlerts";
 import { usePresence } from "./usePresence";
 import { useWidgetToast } from "./useWidgetToast";
 
@@ -172,8 +180,12 @@ const isLoadingMessages = ref(false);
 
 /** Số hội thoại chưa đọc theo bootstrap, dùng khi người dùng chưa mở panel lần nào. */
 const unreadFallback = ref(0);
+/** Số tin chưa đọc theo bootstrap, cũng chỉ dùng khi chưa nạp danh sách. */
+const unreadMessagesFallback = ref(0);
 /** Hội thoại đã cộng vào badge trong phiên này, để một hội thoại không bị cộng hai lần. */
 const countedUnreadIds = new Set<string>();
+/** Hội thoại đã hỏi riêng để dựng thẻ báo tin khi chưa nạp danh sách; xoá mỗi lần nắn badge. */
+const fetchedConversations = new Map<string, Promise<ChatConversation | null>>();
 /** Nhóm chính tab này đang giải tán: tự báo sau khi gọi xong, event quay về không báo lặp. */
 const dissolvingIds = new Set<string>();
 
@@ -188,6 +200,7 @@ let typingSentAt = 0;
 export const useChatStore = () => {
   const toast = useWidgetToast();
   const presence = usePresence();
+  const messageAlerts = useMessageAlerts();
 
   const currentUserId = computed(() =>
     (bootstrap.value?.user?.id ?? "").toLowerCase(),
@@ -348,6 +361,13 @@ export const useChatStore = () => {
       : unreadFallback.value,
   );
 
+  /** Số hiện trên tiêu đề tab; bong bóng đếm hội thoại còn tab đếm tin như các app chat khác. */
+  const unreadMessageCount = computed(() =>
+    conversationsLoaded.value
+      ? conversations.value.reduce((sum, c) => sum + c.unreadCount, 0)
+      : unreadMessagesFallback.value,
+  );
+
   const purgeExpiredTyping = () => {
     const now = Date.now();
     typingEntries.value = typingEntries.value.filter((e) => e.expiresAt > now);
@@ -381,7 +401,9 @@ export const useChatStore = () => {
       const res = await widgetApi.bootstrap();
       bootstrap.value = res.data.data;
       unreadFallback.value = res.data.data.unreadConversations;
+      unreadMessagesFallback.value = res.data.data.unreadMessages ?? 0;
       countedUnreadIds.clear();
+      fetchedConversations.clear();
     } catch {
       // Badge lệch một nhịp không đáng để làm phiền người dùng.
     }
@@ -394,7 +416,10 @@ export const useChatStore = () => {
 
   /** Cộng tạm khi chưa nạp danh sách; con số đúng đến ở lần nắn lại kế tiếp. */
   const bumpBadge = (conversationId: string) => {
-    if (conversationsLoaded.value || countedUnreadIds.has(conversationId)) return;
+    if (conversationsLoaded.value) return;
+
+    unreadMessagesFallback.value += 1;
+    if (countedUnreadIds.has(conversationId)) return;
 
     countedUnreadIds.add(conversationId);
     unreadFallback.value += 1;
@@ -503,6 +528,7 @@ export const useChatStore = () => {
       if (!isOwnMessage(message)) {
         bumpBadge(message.conversationId);
         scheduleBadgeRefresh();
+        alertIncoming(message);
       }
       return;
     }
@@ -513,8 +539,11 @@ export const useChatStore = () => {
       conversation.lastMessageAtUtc = message.createdAtUtc;
     }
 
+    // Tab của site đang ẩn thì người dùng chưa thấy tin, kể cả khi panel mở đúng hội thoại.
     const isReading =
-      isThreadVisible.value && activeConversationId.value === conversation.id;
+      isThreadVisible.value &&
+      activeConversationId.value === conversation.id &&
+      document.visibilityState === "visible";
 
     if (isReading || isOwnMessage(message)) {
       // Đang mở đúng hội thoại thì báo server luôn, nếu không badge ở tab khác cứ sáng mãi.
@@ -542,6 +571,51 @@ export const useChatStore = () => {
         e.conversationId !== message.conversationId ||
         e.userId !== message.senderId.toLowerCase(),
     );
+
+    if (!isReading) alertIncoming(message);
+  };
+
+  /**
+   * Chưa mở panel lần nào thì chưa có danh sách hội thoại, phải hỏi riêng hội thoại này để biết
+   * tên, ảnh và có đang tắt thông báo không.
+   */
+  const resolveConversation = async (conversationId: string) => {
+    const known = findConversation(conversationId);
+    if (known) return known;
+
+    // Nhóm đông tin dồn dập thì mỗi tin một request là thừa, dùng lại lần hỏi trước.
+    let pending = fetchedConversations.get(conversationId);
+    if (!pending) {
+      pending = conversationApi
+        .getById(conversationId)
+        .then((res) => res.data.data)
+        .catch(() => null);
+      fetchedConversations.set(conversationId, pending);
+    }
+    return pending;
+  };
+
+  /** Bỏ qua tin hệ thống và hội thoại đang tắt thông báo. Panel đang mở thì không hiện thẻ. */
+  const alertIncoming = async (message: ChatMessage) => {
+    if (isOwnMessage(message) || message.type === MessageType.System) return;
+
+    const conversation = await resolveConversation(message.conversationId);
+    if (conversation && isMutedNow(conversation)) return;
+
+    announceTabMessage();
+    if (isPanelOpen.value) return;
+
+    const group = conversation ? isGroup(conversation) : false;
+    const body = messagePreview(message);
+    const shortName = message.senderName?.split(" ").at(-1) ?? "Ai đó";
+
+    messageAlerts.push({
+      conversationId: message.conversationId,
+      title: conversation ? titleOf(conversation) : (message.senderName ?? "Tin nhắn mới"),
+      avatarUrl: conversation?.avatarUrl,
+      isGroup: group,
+      preview: group ? `${shortName}: ${body}` : body,
+    });
   };
 
   // ─── Nạp dữ liệu ────────────────────────────────────────────────────────────
@@ -634,6 +708,7 @@ export const useChatStore = () => {
     activeConversationId.value = id;
     view.value = "thread";
     isPinnedBarExpanded.value = false;
+    messageAlerts.dismiss(id);
 
     if (!messagesByConversation.value[id]) {
       await loadMessages(id);
@@ -1434,6 +1509,7 @@ export const useChatStore = () => {
       const res = await widgetApi.bootstrap();
       bootstrap.value = res.data.data;
       unreadFallback.value = res.data.data.unreadConversations;
+      unreadMessagesFallback.value = res.data.data.unreadMessages ?? 0;
 
       if (!res.data.data.canUseChat) return;
 
@@ -1449,6 +1525,7 @@ export const useChatStore = () => {
 
   const openPanel = async () => {
     isPanelOpen.value = true;
+    messageAlerts.clear();
 
     if (!conversationsLoaded.value) await loadConversations();
 
@@ -1482,6 +1559,7 @@ export const useChatStore = () => {
     isPanelOpen,
     view,
     badgeCount,
+    unreadMessageCount,
     openPanel,
     closePanel,
     togglePanel,

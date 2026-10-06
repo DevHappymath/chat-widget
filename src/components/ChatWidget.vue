@@ -2,10 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { configureChatWidget, type ChatWidgetConfig } from "../core/config";
 import { useChatStore } from "../core/store/useChatStore";
+import { setTabUnread, startTabAttention, stopTabAttention } from "../core/tabAttention";
 import { lockPageScroll, unlockPageScroll, useIsWideViewport } from "../core/viewport";
 import ChatPanel from "./ChatPanel.vue";
 import ImageViewer from "./ImageViewer.vue";
 import MessageActionSheet from "./MessageActionSheet.vue";
+import MessageAlerts from "./MessageAlerts.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const props = defineProps<{ config: ChatWidgetConfig }>();
@@ -17,11 +19,15 @@ configureChatWidget(props.config);
 const {
   canUseChat,
   isPanelOpen,
+  view,
+  activeConversationId,
   badgeCount,
+  unreadMessageCount,
   init,
   togglePanel,
   closePanel,
   refreshBadge,
+  markRead,
 } = useChatStore();
 
 const isWide = useIsWideViewport();
@@ -69,13 +75,26 @@ const onKeydown = (event: KeyboardEvent) => {
   if (event.key === "Escape" && isPanelOpen.value) closePanel();
 };
 
+const tabUnread = computed(() => (canUseChat.value ? unreadMessageCount.value : 0));
+watch(tabUnread, (count) => setTabUnread(count));
+
 // Tab ngủ dậy có thể đã lỡ vài event, nắn lại số trên bong bóng thay vì tin vào bộ đếm cũ.
+// Tin đến lúc tab ẩn chưa tính là đã đọc, nên panel đang mở đúng hội thoại thì đánh dấu lúc này.
 const onVisibilityChange = () => {
-  if (document.visibilityState === "visible") refreshBadge();
+  if (document.visibilityState !== "visible") return;
+
+  refreshBadge();
+  if (isPanelOpen.value && view.value === "thread" && activeConversationId.value) {
+    markRead(activeConversationId.value);
+  }
 };
 
 onMounted(() => {
   init();
+  if (props.config.tabIndicator !== false) {
+    startTabAttention();
+    setTabUnread(tabUnread.value);
+  }
   window.addEventListener("keydown", onKeydown);
   document.addEventListener("visibilitychange", onVisibilityChange);
 });
@@ -83,6 +102,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeydown);
   document.removeEventListener("visibilitychange", onVisibilityChange);
+  stopTabAttention();
 });
 </script>
 
@@ -108,6 +128,8 @@ onBeforeUnmount(() => {
           <ChatPanel />
         </div>
       </Transition>
+
+      <MessageAlerts v-if="!isPanelOpen" :side="isLeft ? 'left' : 'right'" />
 
       <button
         type="button"

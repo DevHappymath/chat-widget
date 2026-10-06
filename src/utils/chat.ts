@@ -1,4 +1,9 @@
-import { MessageType, type ChatMessage, type MessageReaction } from "../types/chat";
+import {
+  MessageType,
+  type ChatConversation,
+  type ChatMessage,
+  type MessageReaction,
+} from "../types/chat";
 import { formatDate, formatDateISO, formatRelativeTime, formatTime } from "./format";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -141,6 +146,11 @@ export const messagePreview = (message?: ChatMessage | null): string => {
   if (message.attachments.length) return `Đã gửi ${message.attachments.length} tệp`;
   return "Tin nhắn";
 };
+
+/** Tắt thông báo có hạn thì tự bật lại khi tới hạn, không cần server phát event. */
+export const isMutedNow = (conversation: ChatConversation): boolean =>
+  conversation.isMuted &&
+  (!conversation.mutedUntilUtc || new Date(conversation.mutedUntilUtc).getTime() > Date.now());
 
 export interface ContentSegment {
   text: string;
