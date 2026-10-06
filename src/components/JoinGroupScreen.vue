@@ -26,6 +26,19 @@ const extractToken = (value: string) => {
   return match?.[1] ? decodeURIComponent(match[1]) : trimmed;
 };
 
+/**
+ * Nút sao chép ở trang chat chép cả lời mời nhiều dòng. Ô một dòng có thể nuốt mất dấu xuống
+ * dòng, dính chữ phía sau vào mã mời, nên phải lấy link từ nội dung gốc trước khi trình duyệt dán.
+ */
+const onPaste = (event: ClipboardEvent) => {
+  const link = event.clipboardData?.getData("text").match(/\S*\/join\/[^/?#\s]+/)?.[0];
+  if (!link) return;
+
+  event.preventDefault();
+  input.value = link;
+  error.value = "";
+};
+
 const check = async () => {
   token.value = extractToken(input.value);
   preview.value = null;
@@ -65,6 +78,7 @@ const join = async () => {
         placeholder="Dán liên kết hoặc mã mời"
         class="min-w-0 flex-1 rounded-full bg-gray-50 px-3.5 py-2 text-sm text-gray-900 outline-none ring-1 ring-gray-200 transition-colors focus:bg-white focus:ring-2 focus:ring-chat-accent"
         @input="error = ''"
+        @paste="onPaste"
       />
       <button
         type="submit"
