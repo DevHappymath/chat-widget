@@ -7,7 +7,7 @@ export { useChatStore } from "./core/store/useChatStore";
 export { usePresence } from "./core/store/usePresence";
 
 export { HubEvent, HubMethod } from "./constants/hub-event";
-export { REACTION_EMOJIS } from "./constants/reaction";
+export { EMOJI_CATEGORIES, REACTION_EMOJIS } from "./constants/reaction";
 
 export type {
   AppUser,
@@ -36,4 +36,5 @@ export {
 export {
   MAX_FORWARD_TARGETS,
   MAX_PINNED_PER_CONVERSATION,
+  MAX_REACTIONS_PER_USER,
 } from "./constants/chat";

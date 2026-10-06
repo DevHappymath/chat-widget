@@ -8,6 +8,7 @@ import type { ChatParticipant, UploadedFile } from "../types/chat";
 import { messagePreview, normalizeName, splitMentions } from "../utils/chat";
 import { extractErrorMessage } from "../utils/error";
 import { formatBytes } from "../utils/format";
+import EmojiPicker from "./EmojiPicker.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -170,6 +171,27 @@ const removeAttachment = (fileUrl: string) => {
   attachments.value = attachments.value.filter((f) => f.fileUrl !== fileUrl);
 };
 
+// ─── Biểu tượng cảm xúc ────────────────────────────────────────────────────────
+
+const isEmojiPickerOpen = ref(false);
+
+/** Chèn đúng chỗ con trỏ và để bảng mở, chọn liền mấy biểu tượng không phải mở lại. */
+const insertEmoji = (emoji: string) => {
+  const el = textarea.value;
+  const start = el?.selectionStart ?? body.value.length;
+  const end = el?.selectionEnd ?? start;
+
+  body.value = `${body.value.slice(0, start)}${emoji}${body.value.slice(end)}`;
+  mentionQuery.value = null;
+
+  nextTick(() => {
+    if (!el) return;
+    el.focus();
+    const position = start + emoji.length;
+    el.setSelectionRange(position, position);
+  });
+};
+
 // ─── Ô nhập ───────────────────────────────────────────────────────────────────
 
 // Textarea tự cao theo nội dung, chặn ở 4 dòng để khung chat không bị đẩy hết lên.
@@ -212,6 +234,7 @@ const submit = () => {
   attachments.value = [];
   mentions.value = [];
   mentionQuery.value = null;
+  isEmojiPickerOpen.value = false;
   nextTick(resize);
 };
 
@@ -364,6 +387,22 @@ defineExpose({ focus });
 
       <button
         type="button"
+        class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors"
+        :class="
+          isEmojiPickerOpen
+            ? 'bg-chat-accent/10 text-chat-accent-strong'
+            : 'text-gray-500 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
+        "
+        title="Chèn biểu tượng cảm xúc"
+        aria-label="Chèn biểu tượng cảm xúc"
+        :aria-expanded="isEmojiPickerOpen"
+        @click="isEmojiPickerOpen = !isEmojiPickerOpen"
+      >
+        <WidgetIcon name="Smile" :size="18" />
+      </button>
+
+      <button
+        type="button"
         class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed"
         :class="
           canSend
@@ -378,6 +417,16 @@ defineExpose({ focus });
         <WidgetIcon name="ArrowUp" :size="18" />
       </button>
     </div>
+
+    <div v-if="isEmojiPickerOpen" class="fixed inset-0 z-20" @click="isEmojiPickerOpen = false" />
+    <Transition name="emoji-picker">
+      <div
+        v-if="isEmojiPickerOpen"
+        class="absolute bottom-full right-3 z-30 mb-2 w-72 max-w-[calc(100%-1.5rem)] origin-bottom-right"
+      >
+        <EmojiPicker @pick="insertEmoji" />
+      </div>
+    </Transition>
 
     <ul
       v-if="mentionCandidates.length"
@@ -409,5 +458,30 @@ defineExpose({ focus });
 textarea {
   padding-left: 0;
   padding-right: 0;
+}
+
+.emoji-picker-enter-active {
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.14s ease;
+}
+
+.emoji-picker-leave-active {
+  transition:
+    transform 0.12s ease-in,
+    opacity 0.12s ease-in;
+}
+
+.emoji-picker-enter-from,
+.emoji-picker-leave-to {
+  transform: scale(0.96) translateY(6px);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .emoji-picker-enter-active,
+  .emoji-picker-leave-active {
+    transition: none;
+  }
 }
 </style>

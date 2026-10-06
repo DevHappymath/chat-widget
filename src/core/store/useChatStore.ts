@@ -3,7 +3,11 @@ import {
   FALLBACK_ALLOWED_EXTENSIONS,
   FALLBACK_MAX_ATTACHMENT_SIZE_BYTES,
 } from "../../constants/attachment";
-import { MAX_FORWARD_TARGETS, MIN_SEARCH_KEYWORD_LENGTH } from "../../constants/chat";
+import {
+  MAX_FORWARD_TARGETS,
+  MAX_REACTIONS_PER_USER,
+  MIN_SEARCH_KEYWORD_LENGTH,
+} from "../../constants/chat";
 import { HubEvent } from "../../constants/hub-event";
 import {
   AttachmentKind,
@@ -19,6 +23,7 @@ import {
   type ConversationDissolved,
   type ConversationRead,
   type MessagePinChanged,
+  type MessageReaction,
   type MessageReactionsChanged,
   type MessageSearchItem,
   type MessageSummary,
@@ -26,6 +31,7 @@ import {
   type UpdateGroupConversationCommand,
   type UploadedFile,
 } from "../../types/chat";
+import { applyReactionOp, keepReactionOrder, type ReactionOp } from "../../utils/chat";
 import { extractErrorMessage } from "../../utils/error";
 import { onHubEvent, onHubReconnected, sendTyping, startHub } from "../hub";
 import { conversationApi, messageApi, widgetApi } from "../services";
@@ -33,6 +39,14 @@ import { usePresence } from "./usePresence";
 import { useWidgetToast } from "./useWidgetToast";
 
 export type ConversationFilter = "all" | "unread" | "group";
+
+/**
+ * Thao tác thả/gỡ đã hiện trên màn hình nhưng server chưa xác nhận, theo từng tin. Bản server
+ * trả về (kể cả qua realtime) được phủ lại các thao tác này để chip không nháy về trạng thái cũ.
+ */
+const pendingReactionOps = new Map<string, ReactionOp[]>();
+/** Gửi tuần tự theo từng tin, server mới nhận đúng thứ tự người dùng bấm. */
+const reactionQueues = new Map<string, Promise<void>>();
 
 /** Tín hiệu đang gõ không có sự kiện dừng đáng tin, nên tự tắt sau ngần này. */
 const TYPING_TTL_MS = 4000;
@@ -123,6 +137,8 @@ const editingMessageId = ref<string | null>(null);
 const editingContent = ref("");
 const actionSheetMessage = ref<ChatMessage | null>(null);
 const actionSheetAnchor = ref<MessageActionAnchor | null>(null);
+/** Bảng thao tác đang hiện bảng biểu tượng đầy đủ thay cho danh sách thao tác. */
+const actionSheetShowsEmojiPicker = ref(false);
 const highlightedMessageId = ref<string | null>(null);
 
 const filter = ref<ConversationFilter>("all");
@@ -1157,17 +1173,25 @@ export const useChatStore = () => {
     jumpToMessage(messageId);
   };
 
+  /** `emojiPicker`: mở thẳng bảng biểu tượng đầy đủ, dùng cho nút thả thêm dưới tin. */
   const openMessageActions = (
     message: ChatMessage,
     anchor: MessageActionAnchor,
+    options?: { emojiPicker?: boolean },
   ) => {
     actionSheetMessage.value = message;
     actionSheetAnchor.value = anchor;
+    actionSheetShowsEmojiPicker.value = Boolean(options?.emojiPicker);
+  };
+
+  const showActionSheetEmojiPicker = () => {
+    actionSheetShowsEmojiPicker.value = true;
   };
 
   const closeMessageActions = () => {
     actionSheetMessage.value = null;
     actionSheetAnchor.value = null;
+    actionSheetShowsEmojiPicker.value = false;
   };
 
   const startReply = (message: ChatMessage) => {
@@ -1179,32 +1203,80 @@ export const useChatStore = () => {
     replyingTo.value = null;
   }
 
+  const findMessage = (conversationId: string, messageId: string) =>
+    messagesByConversation.value[conversationId]?.find((m) => m.id === messageId);
+
   const applyReactions = (payload: MessageReactionsChanged) => {
-    const message = messagesByConversation.value[payload.conversationId]?.find(
-      (m) => m.id === payload.messageId,
+    const message = findMessage(payload.conversationId, payload.messageId);
+    if (!message) return;
+
+    const pending = pendingReactionOps.get(payload.messageId) ?? [];
+    const merged = pending.reduce(
+      (list, op) => applyReactionOp(list, op, currentUserId.value),
+      payload.reactions,
     );
 
-    if (message) message.reactions = payload.reactions;
+    message.reactions = keepReactionOrder(message.reactions, merged);
   };
 
-  /** Biểu tượng mình đang thả trên tin; backend chỉ cho mỗi người giữ một cái. */
-  const myReactionOf = (message: ChatMessage) =>
-    message.reactions.find((r) =>
-      r.userIds.some((id) => id.toLowerCase() === currentUserId.value),
-    )?.emoji ?? null;
+  const settleReactionOp = (messageId: string, op: ReactionOp) => {
+    const rest = (pendingReactionOps.get(messageId) ?? []).filter((o) => o !== op);
 
-  /** Bấm lại đúng biểu tượng đang thả là gỡ; bấm cái khác là đổi sang cái đó. */
-  const toggleReaction = async (message: ChatMessage, emoji: string) => {
-    try {
-      const res =
-        myReactionOf(message) === emoji
-          ? await messageApi.removeReaction(message.id)
-          : await messageApi.setReaction(message.id, { emoji });
+    if (rest.length) pendingReactionOps.set(messageId, rest);
+    else pendingReactionOps.delete(messageId);
+  };
 
-      applyReactions(res.data.data);
-    } catch (err) {
-      toast.error(extractErrorMessage(err));
+  const reactedByMe = (reaction: MessageReaction) =>
+    reaction.userIds.some((id) => id.toLowerCase() === currentUserId.value);
+
+  /** Các biểu tượng mình đang thả trên tin; một người thả được nhiều cái khác nhau. */
+  const myReactionsOf = (message: ChatMessage) =>
+    message.reactions.filter(reactedByMe).map((r) => r.emoji);
+
+  /**
+   * Bấm biểu tượng đã thả là gỡ riêng cái đó; bấm cái chưa có là thả thêm. Chip đổi ngay khi
+   * bấm, server từ chối thì trả lại đúng thao tác đó.
+   */
+  const toggleReaction = (message: ChatMessage, emoji: string) => {
+    const mine = myReactionsOf(message);
+    const op: ReactionOp = { emoji, add: !mine.includes(emoji) };
+
+    if (op.add && mine.length >= MAX_REACTIONS_PER_USER) {
+      toast.warning(`Mỗi tin chỉ thả được tối đa ${MAX_REACTIONS_PER_USER} biểu tượng`);
+      return;
     }
+
+    const { id: messageId, conversationId } = message;
+    const me = currentUserId.value;
+
+    pendingReactionOps.set(messageId, [...(pendingReactionOps.get(messageId) ?? []), op]);
+    message.reactions = applyReactionOp(message.reactions, op, me);
+
+    const send = async () => {
+      try {
+        const res = op.add
+          ? await messageApi.setReaction(messageId, { emoji })
+          : await messageApi.removeReaction(messageId, emoji);
+
+        settleReactionOp(messageId, op);
+        applyReactions(res.data.data);
+      } catch (err) {
+        settleReactionOp(messageId, op);
+
+        const target = findMessage(conversationId, messageId);
+        if (target) {
+          target.reactions = applyReactionOp(target.reactions, { emoji, add: !op.add }, me);
+        }
+
+        toast.error(extractErrorMessage(err));
+      }
+    };
+
+    const queued = (reactionQueues.get(messageId) ?? Promise.resolve()).then(send);
+    reactionQueues.set(messageId, queued);
+    queued.finally(() => {
+      if (reactionQueues.get(messageId) === queued) reactionQueues.delete(messageId);
+    });
   };
 
   const startEditMessage = (message: ChatMessage) => {
@@ -1435,6 +1507,7 @@ export const useChatStore = () => {
     replyingTo,
     actionSheetMessage,
     actionSheetAnchor,
+    actionSheetShowsEmojiPicker,
     highlightedMessageId,
     isGroupLeader,
     canManageGroup,
@@ -1467,7 +1540,8 @@ export const useChatStore = () => {
     canForwardMessage,
     isPinned,
     typingUserIdsOf,
-    myReactionOf,
+    myReactionsOf,
+    reactedByMe,
     isOnline: presence.isOnline,
     // hành động
     init,
@@ -1495,6 +1569,7 @@ export const useChatStore = () => {
     loadMoreMedia,
     setMediaKind,
     openMessageActions,
+    showActionSheetEmojiPicker,
     closeMessageActions,
     toggleReaction,
     startEditMessage,

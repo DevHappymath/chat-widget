@@ -5,11 +5,14 @@ import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetConfirm } from "../core/store/useWidgetConfirm";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import { useIsWideViewport } from "../core/viewport";
+import EmojiPicker from "./EmojiPicker.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const {
   actionSheetMessage,
   actionSheetAnchor,
+  actionSheetShowsEmojiPicker,
+  showActionSheetEmojiPicker,
   closeMessageActions,
   canEditMessage,
   canDeleteMessage,
@@ -17,7 +20,7 @@ const {
   startReply,
   startEditMessage,
   toggleReaction,
-  myReactionOf,
+  myReactionsOf,
   deleteMessage,
   canPinMessage,
   canForwardMessage,
@@ -36,12 +39,15 @@ const toast = useWidgetToast();
 const isWide = useIsWideViewport();
 
 const EDGE_PADDING = 8;
-const POPOVER_WIDTH = 224;
+const POPOVER_WIDTH = 248;
+const PICKER_WIDTH = 300;
+/** Khớp `h-72` của bảng biểu tượng. */
+const PICKER_HEIGHT = 288;
 /** Hàng biểu tượng cộng đường kẻ; phần còn lại tính theo số hành động. */
 const POPOVER_HEADER_HEIGHT = 45;
 const ACTION_ROW_HEIGHT = 34;
 /** Bề rộng ước lượng của thanh biểu tượng nổi ở cảm ứng. */
-const REACTION_BAR_WIDTH = 264;
+const REACTION_BAR_WIDTH = 284;
 
 interface SheetAction {
   key: string;
@@ -133,25 +139,38 @@ const canReact = computed(() =>
   Boolean(actionSheetMessage.value && !actionSheetMessage.value.isDeleted),
 );
 
+const myReactions = computed(() =>
+  actionSheetMessage.value ? myReactionsOf(actionSheetMessage.value) : [],
+);
+
 /** Popover mở lên trên nút vừa bấm; không đủ chỗ thì lật xuống dưới. */
 const popoverStyle = computed(() => {
   const anchor = actionSheetAnchor.value;
   if (!anchor) return {};
 
-  const height =
-    (canReact.value ? POPOVER_HEADER_HEIGHT : 0) +
-    actions.value.length * ACTION_ROW_HEIGHT +
-    EDGE_PADDING;
+  const showsPicker = actionSheetShowsEmojiPicker.value;
+  const width = Math.min(
+    showsPicker ? PICKER_WIDTH : POPOVER_WIDTH,
+    window.innerWidth - EDGE_PADDING * 2,
+  );
+  const height = showsPicker
+    ? PICKER_HEIGHT
+    : (canReact.value ? POPOVER_HEADER_HEIGHT : 0) +
+      actions.value.length * ACTION_ROW_HEIGHT +
+      EDGE_PADDING;
 
   const left = Math.min(
-    Math.max(anchor.x - POPOVER_WIDTH / 2, EDGE_PADDING),
-    window.innerWidth - POPOVER_WIDTH - EDGE_PADDING,
+    Math.max(anchor.x - width / 2, EDGE_PADDING),
+    window.innerWidth - width - EDGE_PADDING,
   );
 
   const above = anchor.y - height - 10;
-  const top = above < EDGE_PADDING ? anchor.y + 26 : above;
+  const top =
+    above < EDGE_PADDING
+      ? Math.min(anchor.y + 26, window.innerHeight - height - EDGE_PADDING)
+      : above;
 
-  return { left: `${left}px`, top: `${top}px`, width: `${POPOVER_WIDTH}px` };
+  return { left: `${left}px`, top: `${top}px`, width: `${width}px` };
 });
 
 const reactionBarStyle = computed(() => {
@@ -202,7 +221,15 @@ const onRun = async (action: SheetAction) => {
 
         <!-- Màn hình lớn: một thẻ duy nhất gồm hàng biểu tượng và danh sách thao tác. -->
         <div
-          v-if="isWide"
+          v-if="isWide && actionSheetShowsEmojiPicker"
+          class="absolute"
+          :style="popoverStyle"
+        >
+          <EmojiPicker :selected="myReactions" @pick="onPickEmoji" />
+        </div>
+
+        <div
+          v-else-if="isWide"
           class="absolute overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-xl"
           :style="popoverStyle"
         >
@@ -212,11 +239,20 @@ const onRun = async (action: SheetAction) => {
               :key="emoji"
               type="button"
               class="inline-flex h-8 w-8 items-center justify-center rounded-full text-base transition-transform hover:scale-115 hover:bg-gray-50"
-              :class="myReactionOf(actionSheetMessage) === emoji && 'bg-chat-accent/10'"
+              :class="myReactions.includes(emoji) && 'bg-chat-accent/10'"
               :aria-label="`Thả ${emoji}`"
               @click="onPickEmoji(emoji)"
             >
               {{ emoji }}
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
+              title="Chọn biểu tượng khác"
+              aria-label="Chọn biểu tượng khác"
+              @click="showActionSheetEmojiPicker"
+            >
+              <WidgetIcon name="Plus" :size="15" />
             </button>
           </div>
 
@@ -238,7 +274,7 @@ const onRun = async (action: SheetAction) => {
         <!-- Cảm ứng: thanh biểu tượng nổi ngay chỗ vừa ấn giữ, thao tác nằm ở bottom sheet. -->
         <template v-else>
           <div
-            v-if="canReact"
+            v-if="canReact && !actionSheetShowsEmojiPicker"
             class="absolute flex -translate-x-1/2 gap-0.5 rounded-full border border-gray-100 bg-white px-2 py-1.5 shadow-xl"
             :style="reactionBarStyle"
           >
@@ -247,11 +283,19 @@ const onRun = async (action: SheetAction) => {
               :key="emoji"
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center rounded-full text-lg transition-transform active:scale-90"
-              :class="myReactionOf(actionSheetMessage) === emoji && 'bg-chat-accent/10'"
+              :class="myReactions.includes(emoji) && 'bg-chat-accent/10'"
               :aria-label="`Thả ${emoji}`"
               @click="onPickEmoji(emoji)"
             >
               {{ emoji }}
+            </button>
+            <button
+              type="button"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-transform active:scale-90"
+              aria-label="Chọn biểu tượng khác"
+              @click="showActionSheetEmojiPicker"
+            >
+              <WidgetIcon name="Plus" :size="18" />
             </button>
           </div>
 
@@ -262,7 +306,11 @@ const onRun = async (action: SheetAction) => {
               <span class="h-1 w-10 rounded-full bg-gray-200" />
             </div>
 
-            <ul class="pb-2">
+            <div v-if="actionSheetShowsEmojiPicker" class="px-3 pb-2">
+              <EmojiPicker :selected="myReactions" @pick="onPickEmoji" />
+            </div>
+
+            <ul v-else class="pb-2">
               <li v-for="action in actions" :key="action.key">
                 <button
                   type="button"

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
 import type { ChatMessage, MessageAttachment } from "../types/chat";
 import type { MessageCluster } from "../utils/chat";
-import { splitMentions } from "../utils/chat";
+import { countEmojiOnly, splitMentions } from "../utils/chat";
 import { formatBytes, formatDateISO, formatDateTime, formatTime } from "../utils/format";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -30,7 +30,7 @@ const {
   jumpToMessage,
   highlightedMessageId,
   toggleReaction,
-  myReactionOf,
+  reactedByMe,
   openMessageActions,
   isPinned,
 } = useChatStore();
@@ -168,8 +168,48 @@ const forwardedFromLabel = (message: ChatMessage) =>
     : "";
 
 /** Tin chỉ có tệp thì không vẽ bong bóng, tránh một khung rỗng nằm trên tệp. */
+/**
+ * Tin chỉ toàn emoji vẽ to và bỏ khung như Messenger. Đang trả lời tin khác thì vẫn giữ khung
+ * vì phần trích dẫn cần nền để đọc được.
+ */
+const emojiOnlyCount = (message: ChatMessage) =>
+  message.isDeleted || message.replyTo ? 0 : countEmojiOnly(message.content);
+
+const emojiOnlyClass = (message: ChatMessage) => {
+  const count = emojiOnlyCount(message);
+  if (count === 1) return "text-4xl";
+  return count <= 3 ? "text-3xl" : "text-2xl";
+};
+
 const hasBubble = (message: ChatMessage) =>
-  message.isDeleted || Boolean(message.content?.trim()) || Boolean(message.replyTo);
+  message.isDeleted ||
+  Boolean(message.replyTo) ||
+  (Boolean(message.content?.trim()) && !emojiOnlyCount(message));
+
+/** Chip vừa bấm, giữ trong lúc chạy hiệu ứng nảy. */
+const poppedKey = ref<string | null>(null);
+
+const reactionKey = (message: ChatMessage, emoji: string) => `${message.id}:${emoji}`;
+
+const react = (message: ChatMessage, emoji: string) => {
+  toggleReaction(message, emoji);
+
+  // Gỡ class rồi gắn lại ở khung hình sau thì bấm liên tiếp cùng một chip vẫn nảy lại.
+  poppedKey.value = null;
+  requestAnimationFrame(() => {
+    poppedKey.value = reactionKey(message, emoji);
+  });
+};
+
+/** Nút thả thêm dưới tin mở thẳng bảng biểu tượng đầy đủ, không qua danh sách thao tác. */
+const openEmojiPickerFromButton = (event: MouseEvent, message: ChatMessage) => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  openMessageActions(
+    message,
+    { x: rect.left + rect.width / 2, y: rect.top },
+    { emojiPicker: true },
+  );
+};
 
 const canOpenActions = (message: ChatMessage) =>
   !message.isDeleted &&
@@ -375,6 +415,14 @@ const onEditKeydown = (event: KeyboardEvent) => {
                   {{ forwardedFromLabel(message) }}
                 </p>
 
+                <p
+                  v-if="emojiOnlyCount(message)"
+                  class="wrap-break-word px-0.5 leading-tight"
+                  :class="emojiOnlyClass(message)"
+                >
+                  {{ message.content!.trim() }}
+                </p>
+
                 <template v-for="file in message.attachments" :key="file.id">
                   <button
                     v-if="file.contentType.startsWith('image/')"
@@ -430,28 +478,59 @@ const onEditKeydown = (event: KeyboardEvent) => {
           </template>
         </div>
 
-        <ul
-          v-if="message.reactions.length"
-          class="mt-1 flex flex-wrap gap-1"
-          :class="cluster.isOwn && 'justify-end'"
+        <!-- Khoảng cách giữa các chip nằm trong từng chip (ps-1) chứ không dùng gap, để chip co
+             về 0 là khoảng trống cũng co theo, không giật hàng. Hàng luôn được dựng sẵn để chip
+             đầu tiên của tin cũng có hiệu ứng xuất hiện. -->
+        <TransitionGroup
+          tag="ul"
+          name="reaction-chip"
+          class="-ms-1 flex flex-wrap gap-y-1"
+          :class="[message.reactions.length && 'mt-1', cluster.isOwn && 'justify-end']"
         >
-          <li v-for="reaction in message.reactions" :key="reaction.emoji">
-            <button
-              type="button"
-              class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors"
-              :class="
-                myReactionOf(message) === reaction.emoji
-                  ? 'border-chat-accent/40 bg-chat-accent/10 text-chat-accent-strong'
-                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-              "
-              :title="reactionTooltip(reaction.userIds)"
-              @click="toggleReaction(message, reaction.emoji)"
-            >
-              <span>{{ reaction.emoji }}</span>
-              <span class="tabular-nums">{{ reaction.count }}</span>
-            </button>
+          <li v-for="reaction in message.reactions" :key="reaction.emoji" class="reaction-chip">
+            <div class="min-w-0 ps-1">
+              <button
+                type="button"
+                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors duration-200 active:scale-95"
+                :class="[
+                  reactedByMe(reaction)
+                    ? 'border-chat-accent/40 bg-chat-accent/10 text-chat-accent-strong'
+                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                  poppedKey === reactionKey(message, reaction.emoji) && 'reaction-pop',
+                ]"
+                :title="reactionTooltip(reaction.userIds)"
+                @click="react(message, reaction.emoji)"
+                @animationend="poppedKey = null"
+              >
+                <span class="reaction-emoji">{{ reaction.emoji }}</span>
+                <span class="inline-grid overflow-hidden tabular-nums">
+                  <Transition name="reaction-count">
+                    <span :key="reaction.count" class="col-start-1 row-start-1">
+                      {{ reaction.count }}
+                    </span>
+                  </Transition>
+                </span>
+              </button>
+            </div>
           </li>
-        </ul>
+          <li
+            v-if="canOpenActions(message) && message.reactions.length"
+            key="__add"
+            class="reaction-chip"
+          >
+            <div class="min-w-0 ps-1">
+              <button
+                type="button"
+                class="inline-flex h-full items-center rounded-full border border-dashed border-gray-300 bg-white px-2 py-0.5 text-gray-500 transition-colors hover:border-chat-accent/40 hover:bg-chat-accent/5 hover:text-chat-accent-strong"
+                title="Thả thêm biểu tượng"
+                aria-label="Thả thêm biểu tượng"
+                @click="openEmojiPickerFromButton($event, message)"
+              >
+                <WidgetIcon name="SmilePlus" :size="13" />
+              </button>
+            </div>
+          </li>
+        </TransitionGroup>
 
         <p
           v-if="isPinned(message) && !message.isDeleted"
@@ -488,3 +567,90 @@ const onEditKeydown = (event: KeyboardEvent) => {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Chip co giãn theo bề ngang thật bằng lưới 0fr ↔ 1fr, các chip bên cạnh trượt theo thay vì
+   nhảy cóc khi có chip mới hoặc chip bị gỡ. */
+.reaction-chip {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.reaction-chip-enter-active,
+.reaction-chip-leave-active {
+  transition:
+    grid-template-columns 0.24s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.18s ease,
+    transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reaction-chip-enter-active > div,
+.reaction-chip-leave-active > div {
+  overflow: hidden;
+}
+
+.reaction-chip-enter-from,
+.reaction-chip-leave-to {
+  grid-template-columns: 0fr;
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.reaction-chip-leave-active {
+  transition-timing-function: ease-in;
+}
+
+.reaction-pop {
+  animation: reaction-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.reaction-pop .reaction-emoji {
+  display: inline-block;
+  animation: reaction-emoji-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes reaction-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+@keyframes reaction-emoji-bounce {
+  0% { transform: scale(1) rotate(0); }
+  35% { transform: scale(1.45) rotate(-12deg); }
+  70% { transform: scale(0.92) rotate(6deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* Số cũ trượt lên, số mới trồi từ dưới, hai số chồng cùng một ô lưới nên không đẩy chiều ngang. */
+.reaction-count-enter-active,
+.reaction-count-leave-active {
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s ease;
+}
+
+.reaction-count-enter-from {
+  transform: translateY(70%);
+  opacity: 0;
+}
+
+.reaction-count-leave-to {
+  transform: translateY(-70%);
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-chip-enter-active,
+  .reaction-chip-leave-active,
+  .reaction-count-enter-active,
+  .reaction-count-leave-active {
+    transition: none;
+  }
+
+  .reaction-pop,
+  .reaction-pop .reaction-emoji {
+    animation: none;
+  }
+}
+</style>

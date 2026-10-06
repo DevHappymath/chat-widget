@@ -1,4 +1,4 @@
-import { MessageType, type ChatMessage } from "../types/chat";
+import { MessageType, type ChatMessage, type MessageReaction } from "../types/chat";
 import { formatDate, formatDateISO, formatRelativeTime, formatTime } from "./format";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -186,6 +186,106 @@ export const splitMentions = (
   }
 
   return segments;
+};
+
+const PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
+const FLAG = /^\p{Regional_Indicator}{2}$/u;
+const KEYCAP = "\u20E3";
+
+let graphemeSegmenter: Intl.Segmenter | null = null;
+
+// Mỗi lần vẽ lại danh sách tin đều hỏi lại hàm này nhiều lần cho cùng một nội dung.
+const emojiOnlyCache = new Map<string, number>();
+const EMOJI_ONLY_CACHE_LIMIT = 500;
+
+/**
+ * Số emoji nếu nội dung chỉ toàn emoji, có chữ lẫn vào thì 0. Đếm theo cụm ký tự vì một emoji
+ * như 👍🏽 hay 👨‍👩‍👧 ghép từ nhiều code point.
+ */
+export const countEmojiOnly = (content: string | null | undefined): number => {
+  const text = content?.trim();
+  if (!text) return 0;
+
+  const cached = emojiOnlyCache.get(text);
+  if (cached !== undefined) return cached;
+
+  graphemeSegmenter ??= new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+  let count = 0;
+  for (const { segment } of graphemeSegmenter.segment(text)) {
+    if (!segment.trim()) continue;
+    if (!PICTOGRAPHIC.test(segment) && !FLAG.test(segment) && !segment.includes(KEYCAP)) {
+      count = 0;
+      break;
+    }
+    count++;
+  }
+
+  if (emojiOnlyCache.size >= EMOJI_ONLY_CACHE_LIMIT) emojiOnlyCache.clear();
+  emojiOnlyCache.set(text, count);
+
+  return count;
+};
+
+export interface ReactionOp {
+  emoji: string;
+  /** `true` là thả thêm, `false` là gỡ. */
+  add: boolean;
+}
+
+const reactedBy = (reaction: MessageReaction, userId: string) =>
+  reaction.userIds.some((id) => id.toLowerCase() === userId);
+
+/**
+ * Áp một thao tác thả/gỡ lên hàng biểu tượng mà không chờ server. Thả cái đã có hay gỡ cái
+ * chưa có thì giữ nguyên, nên phủ lại nhiều lần lên bản server trả về vẫn ra cùng kết quả.
+ */
+export const applyReactionOp = (
+  reactions: MessageReaction[],
+  op: ReactionOp,
+  userId: string,
+): MessageReaction[] => {
+  const index = reactions.findIndex((r) => r.emoji === op.emoji);
+  const current = index >= 0 ? reactions[index] : undefined;
+
+  if (op.add) {
+    if (current && reactedBy(current, userId)) return reactions;
+    if (!current) return [...reactions, { emoji: op.emoji, count: 1, userIds: [userId] }];
+
+    return reactions.map((r, i) =>
+      i === index ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] } : r,
+    );
+  }
+
+  if (!current || !reactedBy(current, userId)) return reactions;
+  if (current.count <= 1) return reactions.filter((_, i) => i !== index);
+
+  return reactions.map((r, i) =>
+    i === index
+      ? {
+          ...r,
+          count: r.count - 1,
+          userIds: r.userIds.filter((id) => id.toLowerCase() !== userId),
+        }
+      : r,
+  );
+};
+
+/**
+ * Server xếp theo số lượt, nên mỗi lần có người thả là các chip đổi chỗ cho nhau. Giữ thứ tự
+ * đang hiện, biểu tượng mới nối vào cuối, để hàng chip không nhảy dưới tay người đang bấm.
+ */
+export const keepReactionOrder = (
+  current: MessageReaction[],
+  next: MessageReaction[],
+): MessageReaction[] => {
+  const order = new Map(current.map((r, i) => [r.emoji, i]));
+  const rank = (emoji: string, fallback: number) => order.get(emoji) ?? current.length + fallback;
+
+  return next
+    .map((reaction, i) => ({ reaction, rank: rank(reaction.emoji, i) }))
+    .sort((a, b) => a.rank - b.rank)
+    .map((item) => item.reaction);
 };
 
 export interface HighlightSegment {

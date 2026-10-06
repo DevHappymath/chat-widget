@@ -145,15 +145,18 @@ export const messageApi = {
   /** Xoá mềm: server trả về tin đã đánh dấu `isDeleted` để client thay tại chỗ. */
   remove: (id: string) => useHttp().delete<ApiEnvelope<ChatMessage>>(`/messages/${id}`),
 
-  /** Mỗi người chỉ giữ một biểu tượng trên một tin; gửi emoji khác là thay cái cũ. */
+  /** Thả thêm một biểu tượng; thả lại cái đã có thì server giữ nguyên. */
   setReaction: (id: string, command: SetMessageReactionCommand) =>
     useHttp().put<ApiEnvelope<MessageReactionsChanged>>(
       `/messages/${id}/reactions`,
       command,
     ),
 
-  removeReaction: (id: string) =>
-    useHttp().delete<ApiEnvelope<MessageReactionsChanged>>(`/messages/${id}/reactions`),
+  /** Gỡ đúng một biểu tượng của mình, các biểu tượng khác đã thả vẫn giữ. */
+  removeReaction: (id: string, emoji: string) =>
+    useHttp().delete<ApiEnvelope<MessageReactionsChanged>>(`/messages/${id}/reactions`, {
+      params: { emoji },
+    }),
 
   /** Tìm trong một hội thoại; keyset theo `sequence` để cuộn liền mạch với lịch sử. */
   search: (conversationId: string, request: MessageSearchRequest) =>
