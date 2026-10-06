@@ -4,7 +4,7 @@ import { useChatStore } from "../core/store/useChatStore";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
 import type { ChatMessage, MessageAttachment } from "../types/chat";
 import type { MessageCluster } from "../utils/chat";
-import { countEmojiOnly, splitMentions } from "../utils/chat";
+import { countEmojiOnly, linkifySegments, splitMentions } from "../utils/chat";
 import { formatBytes, formatDateISO, formatDateTime, formatTime } from "../utils/format";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -129,7 +129,7 @@ const openImage = (file: MessageAttachment) =>
 
 /** Backend chỉ lưu userId của người được nhắc, tên phải tra ngược từ danh sách thành viên. */
 const contentSegments = (message: ChatMessage) =>
-  splitMentions(message.content ?? "", message.mentionedUserIds.map(nameOfUser));
+  linkifySegments(splitMentions(message.content ?? "", message.mentionedUserIds.map(nameOfUser)));
 
 const reactionTooltip = (userIds: string[]) => userIds.map(nameOfUser).join(", ");
 
@@ -391,17 +391,31 @@ const onEditKeydown = (event: KeyboardEvent) => {
                   </button>
 
                   <p v-if="message.content">
-                    <span
-                      v-for="(segment, index) in contentSegments(message)"
-                      :key="index"
-                      :class="
-                        segment.isMention && [
-                          'font-semibold',
-                          cluster.isOwn ? 'text-white' : 'text-chat-accent-strong',
-                        ]
-                      "
-                      >{{ segment.text }}</span
-                    >
+                    <template v-for="(segment, index) in contentSegments(message)" :key="index">
+                      <a
+                        v-if="segment.href"
+                        :href="segment.href"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="break-all underline underline-offset-2 transition-colors"
+                        :class="
+                          cluster.isOwn
+                            ? 'text-white decoration-white/50 hover:decoration-white'
+                            : 'text-chat-accent-strong decoration-chat-accent-strong/40 hover:decoration-chat-accent-strong'
+                        "
+                        >{{ segment.text }}</a
+                      >
+                      <span
+                        v-else
+                        :class="
+                          segment.isMention && [
+                            'font-semibold',
+                            cluster.isOwn ? 'text-white' : 'text-chat-accent-strong',
+                          ]
+                        "
+                        >{{ segment.text }}</span
+                      >
+                    </template>
                   </p>
                 </template>
               </div>

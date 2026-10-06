@@ -288,6 +288,59 @@ export const keepReactionOrder = (
     .map((item) => item.reaction);
 };
 
+export interface MessageSegment extends ContentSegment {
+  /** Có giá trị khi mẩu này là một đường link. */
+  href?: string;
+}
+
+const URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>"]+/gi;
+const TRAILING_PUNCTUATION = /[.,;:!?'"…]+$/;
+
+/**
+ * Dấu câu ngay sau link ("xem tại https://abc.vn.") không thuộc link. Dấu ")" chỉ bỏ khi
+ * thừa, vì link Wikipedia hay có ngoặc đóng thật bên trong.
+ */
+const trimUrl = (raw: string) => {
+  let url = raw.replace(TRAILING_PUNCTUATION, "");
+
+  while (url.endsWith(")") && url.split("(").length < url.split(")").length) {
+    url = url.slice(0, -1).replace(TRAILING_PUNCTUATION, "");
+  }
+
+  return url;
+};
+
+/** Tách thêm link khỏi các mẩu chữ thường; mẩu nhắc tên giữ nguyên. Chỉ nhận http/https. */
+export const linkifySegments = (segments: ContentSegment[]): MessageSegment[] =>
+  segments.flatMap<MessageSegment>((segment) => {
+    if (segment.isMention) return [segment];
+
+    const parts: MessageSegment[] = [];
+    let lastIndex = 0;
+
+    for (const match of segment.text.matchAll(URL_PATTERN)) {
+      const url = trimUrl(match[0]);
+      if (!url) continue;
+
+      if (match.index > lastIndex) {
+        parts.push({ text: segment.text.slice(lastIndex, match.index), isMention: false });
+      }
+
+      parts.push({
+        text: url,
+        isMention: false,
+        href: /^https?:\/\//i.test(url) ? url : `https://${url}`,
+      });
+      lastIndex = match.index + url.length;
+    }
+
+    if (lastIndex < segment.text.length) {
+      parts.push({ text: segment.text.slice(lastIndex), isMention: false });
+    }
+
+    return parts;
+  });
+
 export interface HighlightSegment {
   text: string;
   isMatch: boolean;
