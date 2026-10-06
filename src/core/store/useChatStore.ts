@@ -1440,6 +1440,7 @@ export const useChatStore = () => {
       if (!conversation) {
         if (payload.userId.toLowerCase() === currentUserId.value) {
           scheduleBadgeRefresh();
+          messageAlerts.dismiss(payload.conversationId);
         }
         return;
       }
@@ -1455,6 +1456,10 @@ export const useChatStore = () => {
           0,
           conversation.lastSequence - payload.lastReadSequence,
         );
+        // Đã đọc ở tab/thiết bị khác thì thẻ nổi ở đây cũng hết tác dụng.
+        if (payload.lastReadSequence >= conversation.lastSequence) {
+          messageAlerts.dismiss(conversation.id);
+        }
       }
     });
 
