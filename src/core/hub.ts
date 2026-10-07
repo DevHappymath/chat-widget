@@ -2,6 +2,7 @@ import * as signalR from "@microsoft/signalr";
 import { readonly, ref, shallowRef } from "vue";
 import { HubEvent, HubMethod } from "../constants/hub-event";
 import { resolveHubUrl, useWidgetConfig } from "./config";
+import { widgetApi } from "./services";
 
 type HubHandler = (payload: any) => void;
 
@@ -18,10 +19,21 @@ const dispatch = (event: string, payload: unknown) => {
 const build = (hubUrl: string) =>
   new signalR.HubConnectionBuilder()
     .withUrl(hubUrl, {
-      // Factory được gọi lại ở mỗi lần nối lại, nên token hết hạn sẽ tự được thay bằng token mới.
-      accessTokenFactory: async () => (await useWidgetConfig().getToken()) ?? "",
-      // Bỏ negotiate để token đi thẳng qua query string của WebSocket, đúng cách backend
-      // đọc token ở JwtBearerEvents.OnMessageReceived.
+      // Trả vé dùng một lần chứ không phải token: giá trị này nằm trên URL WebSocket, lọt vào
+      // log proxy và DevTools. Factory được gọi lại ở mỗi lần nối lại nên luôn có vé mới.
+      accessTokenFactory: async () => {
+        // Hết phiên thì đừng xin vé: nhận 401 sẽ kích onUnauthorized, đá người dùng ra đăng nhập.
+        if (!(await useWidgetConfig().getToken())) return "";
+
+        try {
+          const res = await widgetApi.hubTicket();
+          return res.data.data.ticket;
+        } catch {
+          return "";
+        }
+      },
+      // Bỏ negotiate để vé đi thẳng qua query string của WebSocket, đúng cách backend
+      // đọc ở JwtBearerEvents.OnMessageReceived.
       skipNegotiation: true,
       transport: signalR.HttpTransportType.WebSockets,
     })

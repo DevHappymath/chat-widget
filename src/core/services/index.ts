@@ -12,6 +12,7 @@ import type {
   CreateGroupConversationCommand,
   ForwardMessageCommand,
   GroupInvitePreview,
+  HubTicket,
   MarkConversationReadCommand,
   MessageHistory,
   MessageHistoryRequest,
@@ -39,6 +40,9 @@ const toQuery = (params: PagedParams, defaultPageSize: number) => ({
 export const widgetApi = {
   /** Quyết định hiện hay ẩn bong bóng, gọi một lần trước khi mở kết nối hub. */
   bootstrap: () => useHttp().get<ApiEnvelope<ChatBootstrap>>("/chat/bootstrap"),
+
+  /** Vé chỉ dùng được một lần nên phải xin lại trước mỗi lần kết nối hoặc nối lại hub. */
+  hubTicket: () => useHttp().post<ApiEnvelope<HubTicket>>("/chat/hub-ticket"),
 };
 
 /**

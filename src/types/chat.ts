@@ -379,3 +379,9 @@ export interface ChatBootstrap {
   attachment: ChatAttachmentRule;
   serverTimeUtc: string;
 }
+
+/** Kết quả `POST /api/chat/hub-ticket`: vé dùng một lần để mở kết nối hub. */
+export interface HubTicket {
+  ticket: string;
+  expiresInSeconds: number;
+}
