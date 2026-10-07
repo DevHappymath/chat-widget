@@ -3,21 +3,30 @@ import { useWidgetConfig } from "./config";
 
 let instance: AxiosInstance | null = null;
 
+/** Header proxy của site bắt buộc phải có: trang khác không tự đặt được header này nếu không qua CORS. */
+export const PROXY_GUARD_HEADER = "X-Chat-Widget";
+
 /**
- * Axios riêng của widget: gọi thẳng chat service qua CORS với Bearer token của site chủ,
- * không đi qua BFF nên không gửi cookie.
+ * Axios riêng của widget. Có `proxyBase` thì gọi route proxy cùng origin, cookie phiên tự đi
+ * kèm và site gắn token ở server; không thì gọi thẳng chat service qua CORS bằng `getToken`.
  */
 export const useHttp = (): AxiosInstance => {
   if (instance) return instance;
 
   const config = useWidgetConfig();
-  const http = axios.create({ baseURL: config.apiBase });
+  const { proxyBase, getToken } = config;
 
-  http.interceptors.request.use(async (request) => {
-    const token = await config.getToken();
-    if (token) request.headers.Authorization = `Bearer ${token}`;
-    return request;
-  });
+  const http = proxyBase
+    ? axios.create({ baseURL: proxyBase, headers: { [PROXY_GUARD_HEADER]: "1" } })
+    : axios.create({ baseURL: config.apiBase });
+
+  if (!proxyBase && getToken) {
+    http.interceptors.request.use(async (request) => {
+      const token = await getToken();
+      if (token) request.headers.Authorization = `Bearer ${token}`;
+      return request;
+    });
+  }
 
   http.interceptors.response.use(
     (response) => response,

@@ -28,6 +28,7 @@ const readExpiry = (token: string): number => {
  * Nguồn token cho site dùng BFF: token nằm trong cookie httpOnly nên phải hỏi server route
  * của chính site đó. Kết quả được giữ lại tới sát hạn để mỗi request không thêm một round-trip.
  * @param endpoint route trả `{ accessToken }`, mặc định `/api/auth/chat-token`.
+ * @deprecated Đưa token ra JS là để lộ token; site dùng cookie httpOnly hãy chuyển sang `proxyBase`.
  */
 export const createBffTokenProvider = (
   endpoint = "/api/auth/chat-token",

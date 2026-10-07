@@ -23,7 +23,9 @@ const build = (hubUrl: string) =>
       // log proxy và DevTools. Factory được gọi lại ở mỗi lần nối lại nên luôn có vé mới.
       accessTokenFactory: async () => {
         // Hết phiên thì đừng xin vé: nhận 401 sẽ kích onUnauthorized, đá người dùng ra đăng nhập.
-        if (!(await useWidgetConfig().getToken())) return "";
+        // Đi qua proxy thì không biết trước được, để proxy trả 401 như mọi lời gọi khác.
+        const { getToken, proxyBase } = useWidgetConfig();
+        if (!proxyBase && getToken && !(await getToken())) return "";
 
         try {
           const res = await widgetApi.hubTicket();

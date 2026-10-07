@@ -26,7 +26,7 @@ Hợp đồng API và event hub: xem `chat.gdtd.vn-be/docs/chat-widget-plan.md`.
 | Nuxt 3, Vue 3.5, Tailwind v4 | Package ship mã nguồn, biên dịch bằng toolchain của site |
 | `axios`, `@microsoft/signalr`, `lucide-vue-next` | Khai báo là peer dependency, site đã có sẵn |
 | Origin của site nằm trong `Cors:AllowedOrigins` của chat service | Không có thì chết ở preflight, kể cả khi token hợp lệ |
-| Một server route trả access_token | Token nằm trong cookie httpOnly, JS không đọc được |
+| Một server route proxy sang chat service | Token nằm trong cookie httpOnly; proxy gắn token ở server nên trình duyệt không bao giờ cầm token |
 
 ## Cài đặt
 
@@ -101,9 +101,11 @@ Muốn widget mang màu thương hiệu của site thì ghi đè token **sau** d
 }
 ```
 
-### 4. Thêm server route trả token
+### 4. Thêm server route proxy
 
-Chép `integration/nuxt/chat-token.get.ts` vào `server/api/auth/chat-token.get.ts`.
+Chép `integration/nuxt/chat-proxy.ts` vào `server/api/chat-proxy/[...].ts`. Route này chỉ nhận
+lời gọi có header `X-Chat-Widget: 1` (widget tự gắn) và tự gắn token từ cookie khi chuyển sang
+chat service. **Không** dựng route trả access token cho JS.
 
 ### 5. Đặt widget vào layout
 
@@ -124,8 +126,10 @@ Chép `integration/nuxt/ChatWidgetMount.vue` vào `components/`, rồi đặt v�
 interface ChatWidgetConfig {
   /** Gốc REST của chat service, ví dụ https://chat.giaoducthanhdat.vn/api */
   apiBase: string;
-  /** Trả access_token còn hạn; được gọi lại ở mỗi request và mỗi lần hub nối lại */
-  getToken: () => string | null | Promise<string | null>;
+  /** Route proxy cùng origin của site, ví dụ /api/chat-proxy; có thì không cần getToken */
+  proxyBase?: string;
+  /** Chỉ cho site tự giữ token ở JS (không có cookie httpOnly); gọi lại ở mỗi request */
+  getToken?: () => string | null | Promise<string | null>;
   /** Bỏ trống thì suy ra từ apiBase và hubPath mà bootstrap trả về */
   hubUrl?: string;
   onUnauthorized?: () => void;
@@ -137,11 +141,14 @@ interface ChatWidgetConfig {
 }
 ```
 
-`createBffTokenProvider(endpoint)` là bản dựng sẵn cho site dùng BFF: gọi server route, giữ
-token tới sát hạn (`exp` trừ 30 giây) và gộp các lần hỏi đồng thời thành một request.
+Site giữ token trong cookie httpOnly thì dùng `proxyBase`. Đưa token ra JS chỉ để widget gọi
+chat là mở đường cho mọi đoạn script lạ trên trang lấy được token.
 
-**Không bắt cứng chuỗi token** khi tự viết `getToken`. SignalR gọi lại hàm này ở mỗi lần nối
-lại; giữ cứng token là tab mở cả ngày sẽ mất kết nối vĩnh viễn khi token hết hạn.
+`getToken` chỉ dành cho site vốn đã giữ token ở JS. **Không bắt cứng chuỗi token** khi tự viết
+hàm này: nó được gọi lại ở mỗi request, giữ cứng là token hết hạn thì widget hỏng luôn.
+
+Kết nối realtime không dùng token trên URL: trước mỗi lần kết nối, widget xin một vé dùng một
+lần qua `POST /chat/hub-ticket` (đi qua proxy hoặc kèm `getToken`).
 
 ## Cách widget hoạt động
 
