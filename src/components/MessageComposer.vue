@@ -5,7 +5,7 @@ import { fileApi } from "../core/services";
 import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import type { ChatParticipant, UploadedFile } from "../types/chat";
-import { messagePreview, normalizeName, splitMentions } from "../utils/chat";
+import { messagePreview, normalizeName, pastedImageFiles, splitMentions } from "../utils/chat";
 import { extractErrorMessage } from "../utils/error";
 import { formatBytes } from "../utils/format";
 import EmojiPicker from "./EmojiPicker.vue";
@@ -134,12 +134,8 @@ const isAllowed = (file: File) => {
   return attachmentRule.value.allowedExtensions.includes(extension);
 };
 
-const onPickFiles = async (event: Event) => {
-  const input = event.target as HTMLInputElement;
-  const picked = Array.from(input.files ?? []);
-  input.value = "";
-
-  for (const file of picked) {
+const uploadFiles = async (files: File[]) => {
+  for (const file of files) {
     if (attachments.value.length + uploadingCount.value >= MAX_ATTACHMENTS_PER_MESSAGE) {
       toast.warning(`Mỗi tin nhắn tối đa ${MAX_ATTACHMENTS_PER_MESSAGE} tệp`);
       break;
@@ -165,6 +161,21 @@ const onPickFiles = async (event: Event) => {
       uploadingCount.value -= 1;
     }
   }
+};
+
+const onPickFiles = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const picked = Array.from(input.files ?? []);
+  input.value = "";
+  uploadFiles(picked);
+};
+
+const onPaste = (event: ClipboardEvent) => {
+  const images = pastedImageFiles(event.clipboardData);
+  if (!images.length) return;
+
+  event.preventDefault();
+  uploadFiles(images);
 };
 
 const removeAttachment = (fileUrl: string) => {
@@ -378,6 +389,7 @@ defineExpose({ focus });
             :placeholder="placeholder"
             class="gdtd-chat-no-scrollbar relative block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-sm leading-6 text-transparent caret-gray-900 outline-none placeholder:text-gray-500"
             @keydown="onKeydown"
+            @paste="onPaste"
             @keyup="refreshMentionQuery"
             @click="refreshMentionQuery"
             @scroll="syncMirrorScroll"

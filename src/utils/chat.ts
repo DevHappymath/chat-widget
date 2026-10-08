@@ -400,3 +400,36 @@ export const splitKeywordMatches = (
 
   return segments;
 };
+
+const IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+};
+
+const pastedImageStamp = (d: Date) => {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+};
+
+/**
+ * Ảnh dán từ clipboard, đặt lại tên Image_yyyyMMddHHmmss vì ảnh chụp màn hình luôn mang tên
+ * chung "image.png". Clipboard có kèm chữ (copy từ Excel, Word) thì để trình duyệt dán chữ như thường.
+ */
+export const pastedImageFiles = (clipboard: DataTransfer | null): File[] => {
+  if (!clipboard || clipboard.getData("text/plain").trim()) return [];
+
+  const images = Array.from(clipboard.items)
+    .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file));
+
+  const stamp = pastedImageStamp(new Date());
+
+  return images.map((file, index) => {
+    const extension = IMAGE_EXTENSION_BY_MIME[file.type] ?? `.${file.type.slice("image/".length)}`;
+    const suffix = index ? `_${index + 1}` : "";
+    return new File([file], `Image_${stamp}${suffix}${extension}`, { type: file.type });
+  });
+};
