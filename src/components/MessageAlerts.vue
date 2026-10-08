@@ -5,17 +5,27 @@ import { useMessageAlerts } from "../core/store/useMessageAlerts";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
-const props = defineProps<{ side: "left" | "right" }>();
+const props = withDefaults(
+  defineProps<{
+    side: "left" | "right";
+    /** Số avatar hội thoại thu nhỏ đang xếp trên bong bóng, thẻ phải nằm trên cả chúng. */
+    stackedHeads?: number;
+  }>(),
+  { stackedHeads: 0 },
+);
 
 const { openPanel, selectConversation } = useChatStore();
 const { alerts, dismiss, pause, resume } = useMessageAlerts();
 
-// Xếp ngay trên bong bóng (cao 3.5rem) và bám cùng mép với nó.
+// Xếp ngay trên bong bóng (cao 3.5rem) và bám cùng mép với nó; mỗi avatar thu nhỏ chiếm
+// thêm 3.25rem (2.75rem avatar + 0.5rem khoảng hở).
 const anchorClass = computed(() =>
   props.side === "left"
-    ? "bottom-[calc(var(--gdtd-chat-y)+4.25rem)] left-[var(--gdtd-chat-x)]"
-    : "bottom-[calc(var(--gdtd-chat-y)+4.25rem)] right-[var(--gdtd-chat-x)]",
+    ? "bottom-[calc(var(--gdtd-chat-y)+4.25rem+var(--gdtd-chat-heads))] left-[var(--gdtd-chat-x)]"
+    : "bottom-[calc(var(--gdtd-chat-y)+4.25rem+var(--gdtd-chat-heads))] right-[var(--gdtd-chat-x)]",
 );
+
+const anchorVars = computed(() => ({ "--gdtd-chat-heads": `${props.stackedHeads * 3.25}rem` }));
 
 const open = async (conversationId: string) => {
   window.focus();
@@ -28,6 +38,7 @@ const open = async (conversationId: string) => {
   <div
     class="absolute flex w-[min(22rem,calc(100vw-2*var(--gdtd-chat-x)))] flex-col-reverse gap-2"
     :class="anchorClass"
+    :style="anchorVars"
     role="region"
     aria-label="Tin nhắn mới"
     aria-live="polite"

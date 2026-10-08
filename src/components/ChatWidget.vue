@@ -8,6 +8,7 @@ import ChatPanel from "./ChatPanel.vue";
 import ImageViewer from "./ImageViewer.vue";
 import MessageActionSheet from "./MessageActionSheet.vue";
 import MessageAlerts from "./MessageAlerts.vue";
+import MinimizedChats from "./MinimizedChats.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const props = defineProps<{ config: ChatWidgetConfig }>();
@@ -28,6 +29,7 @@ const {
   closePanel,
   refreshBadge,
   markRead,
+  minimizedConversations,
 } = useChatStore();
 
 const isWide = useIsWideViewport();
@@ -129,7 +131,13 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
 
-      <MessageAlerts v-if="!isPanelOpen" :side="isLeft ? 'left' : 'right'" />
+      <MinimizedChats v-if="!isPanelOpen" :side="isLeft ? 'left' : 'right'" />
+
+      <MessageAlerts
+        v-if="!isPanelOpen"
+        :side="isLeft ? 'left' : 'right'"
+        :stacked-heads="minimizedConversations.length"
+      />
 
       <button
         type="button"

@@ -15,8 +15,16 @@ import NewGroupScreen from "./NewGroupScreen.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 import WidgetToaster from "./WidgetToaster.vue";
 
-const { view, currentUserName, activeConversation, isGroup, isStudent, closePanel, goBack } =
-  useChatStore();
+const {
+  view,
+  currentUserName,
+  activeConversation,
+  isGroup,
+  isStudent,
+  closePanel,
+  goBack,
+  minimizeConversation,
+} = useChatStore();
 
 const HEADINGS: Record<WidgetView, string> = {
   list: "Đoạn chat",
@@ -78,6 +86,17 @@ const subheading = computed(() => {
         @click="view = 'contacts'"
       >
         <WidgetIcon name="SquarePen" :size="17" />
+      </button>
+
+      <button
+        v-if="view === 'thread' && activeConversation"
+        type="button"
+        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
+        aria-label="Thu nhỏ hội thoại"
+        title="Thu nhỏ hội thoại"
+        @click="minimizeConversation"
+      >
+        <WidgetIcon name="Minus" :size="18" />
       </button>
 
       <button

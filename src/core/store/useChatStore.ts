@@ -5,6 +5,7 @@ import {
 } from "../../constants/attachment";
 import {
   MAX_FORWARD_TARGETS,
+  MAX_MINIMIZED_CONVERSATIONS,
   MAX_REACTIONS_PER_USER,
   MIN_SEARCH_KEYWORD_LENGTH,
 } from "../../constants/chat";
@@ -174,6 +175,8 @@ const isLoadingMedia = ref(false);
 
 const isPanelOpen = ref(false);
 const view = ref<WidgetView>("list");
+/** Bản chụp lúc thu nhỏ, giữ được avatar kể cả khi danh sách đang lọc theo từ khoá. */
+const minimizedSnapshots = ref<ChatConversation[]>([]);
 
 const isLoadingConversations = ref(false);
 const isLoadingMessages = ref(false);
@@ -437,6 +440,7 @@ export const useChatStore = () => {
 
   const removeConversation = (conversationId: string) => {
     conversations.value = conversations.value.filter((c) => c.id !== conversationId);
+    minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
     delete messagesByConversation.value[conversationId];
 
     if (activeConversationId.value === conversationId) {
@@ -1550,6 +1554,37 @@ export const useChatStore = () => {
     else openPanel();
   };
 
+  // ─── Thu nhỏ hội thoại ──────────────────────────────────────────────────────
+
+  /** Lấy bản mới nhất trong danh sách để số chưa đọc trên avatar chạy theo tin đến. */
+  const minimizedConversations = computed(() =>
+    minimizedSnapshots.value.map((snapshot) => findConversation(snapshot.id) ?? snapshot),
+  );
+
+  /** Gập hội thoại đang mở thành avatar cạnh bong bóng; mở lại là về đúng hội thoại đó. */
+  const minimizeConversation = () => {
+    const conversation = activeConversation.value;
+    if (!conversation) return;
+
+    minimizedSnapshots.value = [
+      conversation,
+      ...minimizedSnapshots.value.filter((c) => c.id !== conversation.id),
+    ].slice(0, MAX_MINIMIZED_CONVERSATIONS);
+
+    closePanel();
+    backToList();
+  };
+
+  const dismissMinimized = (conversationId: string) => {
+    minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
+  };
+
+  const restoreMinimized = async (conversationId: string) => {
+    dismissMinimized(conversationId);
+    await openPanel();
+    await selectConversation(conversationId);
+  };
+
   return {
     // bootstrap
     bootstrap,
@@ -1569,6 +1604,10 @@ export const useChatStore = () => {
     closePanel,
     togglePanel,
     backToList,
+    minimizedConversations,
+    minimizeConversation,
+    restoreMinimized,
+    dismissMinimized,
     goBack,
     // dữ liệu
     conversations,

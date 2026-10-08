@@ -8,7 +8,8 @@ Phạm vi bản này: bong bóng kèm badge chưa đọc, danh bạ, danh sách 
 tin, đính kèm (kể cả dán ảnh từ clipboard), trả lời, thả cảm xúc, sửa, thu hồi, nhắc tên trong
 nhóm, báo đang soạn tin, trạng thái online. Nhóm: tạo nhóm, đổi tên và ảnh nhóm, thêm và xoá
 thành viên, rời nhóm. Tìm kiếm tin nhắn (trong một hội thoại và toàn cục), ghim tin, chuyển
-tiếp tin, kho ảnh và tệp của hội thoại.
+tiếp tin, kho ảnh và tệp của hội thoại. Thu nhỏ hội thoại đang mở thành avatar cạnh bong bóng
+để mở lại nhanh.
 
 Panel đi theo kiểu một cột nhiều màn: danh sách hội thoại, danh bạ, tạo nhóm, khung chat,
 thông tin hội thoại, thêm thành viên, tìm tin nhắn, chuyển tiếp, ảnh và tệp. Mỗi màn có đúng

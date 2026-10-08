@@ -10,3 +10,6 @@ export const MAX_REACTIONS_PER_USER = 10;
 
 /** Từ khoá ngắn hơn ngần này thì kết quả tìm kiếm quá rộng, không đáng gọi API. */
 export const MIN_SEARCH_KEYWORD_LENGTH = 2;
+
+/** Quá ngần này avatar thu nhỏ chồng lên che mất trang, bỏ bớt cái cũ nhất. */
+export const MAX_MINIMIZED_CONVERSATIONS = 4;
