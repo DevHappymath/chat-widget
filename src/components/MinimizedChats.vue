@@ -54,7 +54,7 @@ const unreadLabel = (count: number) => (count > 9 ? "9+" : `${count}`);
       >
         <button
           type="button"
-          class="block rounded-full shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95"
+          class="block rounded-full transition-transform hover:scale-105 active:scale-95"
           :aria-label="`Mở lại hội thoại ${titleOf(conversation)}`"
           @click="restoreMinimized(conversation.id)"
         >

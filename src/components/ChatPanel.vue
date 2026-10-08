@@ -21,9 +21,9 @@ const {
   activeConversation,
   isGroup,
   isStudent,
-  closePanel,
   goBack,
   minimizeConversation,
+  closeConversation,
 } = useChatStore();
 
 const HEADINGS: Record<WidgetView, string> = {
@@ -103,7 +103,7 @@ const subheading = computed(() => {
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
         aria-label="Đóng khung chat"
-        @click="closePanel"
+        @click="closeConversation"
       >
         <WidgetIcon name="X" :size="18" />
       </button>

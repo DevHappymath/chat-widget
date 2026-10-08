@@ -26,7 +26,7 @@ const {
   unreadMessageCount,
   init,
   togglePanel,
-  closePanel,
+  minimizeConversation,
   refreshBadge,
   markRead,
   minimizedConversations,
@@ -64,17 +64,18 @@ const bubbleClass = computed(() =>
     : "bottom-[var(--gdtd-chat-y)] right-[var(--gdtd-chat-x)]",
 );
 
-// Panel nằm trên bong bóng: cộng thêm chiều cao bong bóng (3.5rem) và một khoảng hở.
+// Panel đứng cạnh cột bong bóng (rộng 3.5rem) chứ không đè lên, để dãy avatar thu nhỏ vẫn
+// thấy và bấm chuyển được trong lúc đang chat.
 const panelClass = computed(() =>
   isLeft.value
-    ? "sm:bottom-[calc(var(--gdtd-chat-y)+4.25rem)] sm:left-[var(--gdtd-chat-x)]"
-    : "sm:bottom-[calc(var(--gdtd-chat-y)+4.25rem)] sm:right-[var(--gdtd-chat-x)]",
+    ? "sm:bottom-[var(--gdtd-chat-y)] sm:left-[calc(var(--gdtd-chat-x)+4.25rem)]"
+    : "sm:bottom-[var(--gdtd-chat-y)] sm:right-[calc(var(--gdtd-chat-x)+4.25rem)]",
 );
 
 const badgeLabel = computed(() => (badgeCount.value > 99 ? "99+" : `${badgeCount.value}`));
 
 const onKeydown = (event: KeyboardEvent) => {
-  if (event.key === "Escape" && isPanelOpen.value) closePanel();
+  if (event.key === "Escape" && isPanelOpen.value) minimizeConversation();
 };
 
 const tabUnread = computed(() => (canUseChat.value ? unreadMessageCount.value : 0));
@@ -124,14 +125,15 @@ onBeforeUnmount(() => {
       >
         <div
           v-if="isPanelOpen"
-          class="pointer-events-auto absolute inset-0 sm:inset-auto sm:h-[620px] sm:max-h-[calc(100dvh-10rem)] sm:w-[380px]"
+          class="pointer-events-auto absolute inset-0 sm:inset-auto sm:h-[620px] sm:max-h-[calc(100dvh-var(--gdtd-chat-y)-2rem)] sm:w-[380px]"
           :class="panelClass"
         >
           <ChatPanel />
         </div>
       </Transition>
 
-      <MinimizedChats v-if="!isPanelOpen" :side="isLeft ? 'left' : 'right'" />
+      <!-- Màn hẹp thì panel phủ kín, avatar nổi lên trên chỉ che mất ô nhập tin. -->
+      <MinimizedChats :side="isLeft ? 'left' : 'right'" :class="isPanelOpen && 'max-sm:hidden'" />
 
       <MessageAlerts
         v-if="!isPanelOpen"

@@ -1550,7 +1550,7 @@ export const useChatStore = () => {
   };
 
   const togglePanel = () => {
-    if (isPanelOpen.value) closePanel();
+    if (isPanelOpen.value) minimizeConversation();
     else openPanel();
   };
 
@@ -1561,17 +1561,22 @@ export const useChatStore = () => {
     minimizedSnapshots.value.map((snapshot) => findConversation(snapshot.id) ?? snapshot),
   );
 
-  /** Gập hội thoại đang mở thành avatar cạnh bong bóng; mở lại là về đúng hội thoại đó. */
+  // Đã có thì giữ nguyên chỗ, để dãy avatar không nhảy thứ tự mỗi lần chuyển qua lại.
+  const keepMinimized = (conversation: ChatConversation) => {
+    if (minimizedSnapshots.value.some((c) => c.id === conversation.id)) return;
+    minimizedSnapshots.value = [conversation, ...minimizedSnapshots.value].slice(
+      0,
+      MAX_MINIMIZED_CONVERSATIONS,
+    );
+  };
+
+  /** Gập panel về bong bóng; đang mở hội thoại nào thì hội thoại đó thành avatar thu nhỏ. */
   const minimizeConversation = () => {
     const conversation = activeConversation.value;
+    closePanel();
     if (!conversation) return;
 
-    minimizedSnapshots.value = [
-      conversation,
-      ...minimizedSnapshots.value.filter((c) => c.id !== conversation.id),
-    ].slice(0, MAX_MINIMIZED_CONVERSATIONS);
-
-    closePanel();
+    keepMinimized(conversation);
     backToList();
   };
 
@@ -1579,8 +1584,24 @@ export const useChatStore = () => {
     minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
   };
 
-  const restoreMinimized = async (conversationId: string) => {
+  /** Đóng hẳn: hội thoại đang mở cũng rời khỏi dãy avatar thu nhỏ. */
+  const closeConversation = () => {
+    const conversationId = activeConversationId.value;
+    closePanel();
+    if (!conversationId) return;
+
     dismissMinimized(conversationId);
+    backToList();
+  };
+
+  /** Bấm lại avatar của hội thoại đang mở thì gập nó xuống, giống bấm bong bóng. */
+  const restoreMinimized = async (conversationId: string) => {
+    if (isPanelOpen.value && activeConversationId.value === conversationId) {
+      minimizeConversation();
+      return;
+    }
+
+    if (activeConversation.value) keepMinimized(activeConversation.value);
     await openPanel();
     await selectConversation(conversationId);
   };
@@ -1606,6 +1627,7 @@ export const useChatStore = () => {
     backToList,
     minimizedConversations,
     minimizeConversation,
+    closeConversation,
     restoreMinimized,
     dismissMinimized,
     goBack,
