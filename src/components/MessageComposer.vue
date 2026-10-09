@@ -212,6 +212,8 @@ const resize = () => {
   const el = textarea.value;
   if (!el) return;
   el.style.height = "auto";
+  // Ô rỗng thì Chrome tính scrollHeight theo placeholder bị xuống dòng, nên giữ nguyên một dòng.
+  if (!el.value) return;
   el.style.height = `${Math.min(el.scrollHeight, MAX_HEIGHT_PX)}px`;
 };
 
