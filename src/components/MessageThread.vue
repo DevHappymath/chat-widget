@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
+import { PresenceStatus } from "../types/chat";
 import { groupChatMessages, presenceLabel } from "../utils/chat";
 import MessageCluster from "./MessageCluster.vue";
 import MessageComposer from "./MessageComposer.vue";
+import PresenceDot from "./PresenceDot.vue";
 import PinnedBar from "./PinnedBar.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -20,6 +22,8 @@ const {
   draft,
   isGroup,
   isOnline,
+  statusOf,
+  statusMessageOf,
   partnerOf,
   titleOf,
   membersOf,
@@ -60,8 +64,15 @@ const subtitle = computed(() => {
     return `${members.length} thành viên · ${online} đang hoạt động`;
   }
 
-  return presenceLabel(isOnline(partner.value?.userId));
+  const label = presenceLabel(statusOf(partner.value?.userId));
+  const message = statusMessageOf(partner.value?.userId);
+  return message ? `${label} · ${message}` : label;
 });
+
+// Người nhắn cần biết trước là tin sẽ không bật lên bên kia, để tự cân nhắc có gọi điện không.
+const partnerIsDoNotDisturb = computed(
+  () => !group.value && statusOf(headerPartnerId.value) === PresenceStatus.DoNotDisturb,
+);
 
 const dayGroups = computed(() =>
   groupChatMessages(activeMessages.value, currentUserId.value),
@@ -110,7 +121,7 @@ const onLoadOlder = async () => {
         :name="headerTitle"
         :variant="group ? 'group' : 'user'"
         :src="activeConversation?.avatarUrl"
-        :is-online="isOnline(headerPartnerId)"
+        :status="statusOf(headerPartnerId)"
         :show-presence="!group"
         size="sm"
       />
@@ -209,6 +220,16 @@ const onLoadOlder = async () => {
         />
       </div>
     </div>
+
+    <p
+      v-if="partnerIsDoNotDisturb"
+      class="flex shrink-0 items-center gap-2 border-t border-gray-100 bg-red-50 px-3 py-1.5 text-[11px] text-red-800"
+    >
+      <PresenceDot :status="PresenceStatus.DoNotDisturb" class="h-2.5 w-2.5 shrink-0" />
+      <span class="min-w-0 flex-1">
+        {{ headerTitle }} đang bật Không làm phiền nên có thể chưa thấy tin ngay.
+      </span>
+    </p>
 
     <MessageComposer
       :key="activeConversationId ?? draft?.userId"

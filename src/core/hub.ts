@@ -1,6 +1,7 @@
 import * as signalR from "@microsoft/signalr";
 import { readonly, ref, shallowRef } from "vue";
 import { HubEvent, HubMethod } from "../constants/hub-event";
+import { PresenceStatus, type UserPresence } from "../types/chat";
 import { resolveHubUrl, useWidgetConfig } from "./config";
 import { widgetApi } from "./services";
 
@@ -114,6 +115,32 @@ const isReady = () =>
 export const getOnlineUsers = async (): Promise<string[]> => {
   if (!isReady()) return [];
   return await connection.value!.invoke<string[]>(HubMethod.GetOnlineUsers);
+};
+
+/**
+ * Trạng thái ban đầu của người có chung hội thoại; ai không có trong danh sách là ngoại tuyến.
+ * Server chưa có trạng thái chi tiết thì dựng lại từ danh sách online, coi như ai cũng sẵn sàng.
+ */
+export const getPresences = async (): Promise<UserPresence[]> => {
+  if (!isReady()) return [];
+
+  try {
+    return await connection.value!.invoke<UserPresence[]>(HubMethod.GetPresences);
+  } catch {
+    const ids = await getOnlineUsers();
+    const atUtc = new Date().toISOString();
+    return ids.map((userId) => ({ userId, isOnline: true, status: PresenceStatus.Available, atUtc }));
+  }
+};
+
+/** Báo tab này có người đang thao tác hay không; rơi mất thì lần nối lại sẽ gửi lại. */
+export const sendIdle = async (isIdle: boolean) => {
+  if (!isReady()) return;
+  try {
+    await connection.value!.invoke(HubMethod.SetIdle, isIdle);
+  } catch {
+    // Server đời cũ không có method này; trạng thái vắng mặt chỉ đơn giản là không hiện.
+  }
 };
 
 export const sendTyping = async (conversationId: string, isTyping: boolean) => {

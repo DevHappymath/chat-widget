@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { PresenceStatus } from "../types/chat";
 import { avatarTone, nameInitials } from "../utils/chat";
+import PresenceDot from "./PresenceDot.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 type AvatarSize = "xs" | "sm" | "md" | "lg";
@@ -12,10 +14,12 @@ const props = withDefaults(
     /** Nhóm dùng icon thay vì chữ viết tắt để phân biệt ngay với hội thoại 1-1. */
     variant?: "user" | "group";
     src?: string | null;
+    /** Bỏ trống thì suy từ `isOnline`, cho nơi chỉ biết online hay không. */
+    status?: PresenceStatus;
     isOnline?: boolean;
     showPresence?: boolean;
   }>(),
-  { size: "md", variant: "user", isOnline: false, showPresence: false },
+  { size: "md", variant: "user", status: undefined, isOnline: false, showPresence: false },
 );
 
 const SIZE_CLASSES: Record<AvatarSize, string> = {
@@ -33,6 +37,10 @@ const DOT_CLASSES: Record<AvatarSize, string> = {
 };
 
 const ICON_SIZES: Record<AvatarSize, number> = { xs: 14, sm: 16, md: 20, lg: 28 };
+
+const resolvedStatus = computed(
+  () => props.status ?? (props.isOnline ? PresenceStatus.Available : PresenceStatus.Offline),
+);
 
 const tone = computed(() =>
   props.variant === "group"
@@ -60,11 +68,11 @@ const tone = computed(() =>
       <template v-else>{{ nameInitials(name) }}</template>
     </span>
 
-    <span
+    <PresenceDot
       v-if="showPresence"
-      class="absolute bottom-0 right-0 rounded-full border-2 border-white"
-      :class="[DOT_CLASSES[size], isOnline ? 'bg-emerald-500' : 'bg-gray-300']"
-      :aria-label="isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'"
+      :status="resolvedStatus"
+      class="absolute bottom-0 right-0 border-2 border-white"
+      :class="DOT_CLASSES[size]"
     />
   </span>
 </template>

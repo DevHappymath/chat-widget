@@ -25,15 +25,18 @@ export type {
   MessageReaction,
   MessageSearchItem,
   MessageSearchResponse,
+  MyPresence,
   Sticker,
   StickerPack,
   UploadedFile,
+  UserPresence,
 } from "./types/chat";
 export {
   AttachmentKind,
   ConversationType,
   MessageType,
   ParticipantRole,
+  PresenceStatus,
 } from "./types/chat";
 export {
   MAX_FORWARD_TARGETS,

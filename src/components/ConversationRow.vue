@@ -9,7 +9,7 @@ import WidgetIcon from "./WidgetIcon.vue";
 const props = defineProps<{ conversation: ChatConversation }>();
 defineEmits<{ select: [id: string] }>();
 
-const { currentUserId, isGroup, partnerOf, titleOf, isOnline, typingUserIdsOf, togglePin } =
+const { currentUserId, isGroup, partnerOf, titleOf, statusOf, typingUserIdsOf, togglePin } =
   useChatStore();
 
 const partner = computed(() => partnerOf(props.conversation));
@@ -46,7 +46,7 @@ const timestamp = computed(
         :name="titleOf(conversation)"
         :variant="group ? 'group' : 'user'"
         :src="conversation.avatarUrl"
-        :is-online="isOnline(partner?.userId)"
+        :status="statusOf(partner?.userId)"
         :show-presence="!group"
         size="md"
       />

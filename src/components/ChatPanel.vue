@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { ownPresenceLabel } from "../constants/presence";
 import { useChatStore, type WidgetView } from "../core/store/useChatStore";
 import AddMembersScreen from "./AddMembersScreen.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
@@ -12,6 +13,8 @@ import MediaScreen from "./MediaScreen.vue";
 import MessageSearchScreen from "./MessageSearchScreen.vue";
 import MessageThread from "./MessageThread.vue";
 import NewGroupScreen from "./NewGroupScreen.vue";
+import PresenceDot from "./PresenceDot.vue";
+import PresenceMenu from "./PresenceMenu.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 import WidgetToaster from "./WidgetToaster.vue";
 
@@ -21,6 +24,7 @@ const {
   activeConversation,
   isGroup,
   isStudent,
+  myPresence,
   goBack,
   minimizeConversation,
   closeConversation,
@@ -44,6 +48,11 @@ const heading = computed(() =>
   view.value === "contacts" && isStudent.value ? "Giáo viên của bạn" : HEADINGS[view.value],
 );
 const showBack = computed(() => view.value !== "list");
+
+const isPresenceMenuOpen = ref(false);
+
+// Ở danh sách hội thoại, dòng phụ thành nút đặt trạng thái; server chưa hỗ trợ thì giữ tên như cũ.
+const showPresenceTrigger = computed(() => view.value === "list" && Boolean(myPresence.value));
 
 const subheading = computed(() => {
   if (view.value === "list") return currentUserName.value;
@@ -74,7 +83,22 @@ const subheading = computed(() => {
 
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-bold">{{ heading }}</p>
-        <p v-if="subheading" class="truncate text-[11px] text-white/75">{{ subheading }}</p>
+        <button
+          v-if="showPresenceTrigger && myPresence"
+          type="button"
+          class="-mx-1 flex max-w-full items-center gap-1.5 rounded-full px-1 text-[11px] text-white/85 transition-colors hover:bg-white/15 hover:text-white"
+          :aria-expanded="isPresenceMenuOpen"
+          aria-haspopup="dialog"
+          :title="currentUserName"
+          @click="isPresenceMenuOpen = !isPresenceMenuOpen"
+        >
+          <PresenceDot :status="myPresence.status" class="h-2 w-2 shrink-0 ring-1 ring-white/80" />
+          <span class="truncate">
+            {{ ownPresenceLabel(myPresence) }}<template v-if="myPresence.message"> · {{ myPresence.message }}</template>
+          </span>
+          <WidgetIcon name="ChevronDown" :size="12" class="shrink-0" />
+        </button>
+        <p v-else-if="subheading" class="truncate text-[11px] text-white/75">{{ subheading }}</p>
       </div>
 
       <button
@@ -108,6 +132,15 @@ const subheading = computed(() => {
         <WidgetIcon name="X" :size="18" />
       </button>
     </header>
+
+    <template v-if="isPresenceMenuOpen && showPresenceTrigger">
+      <div class="absolute inset-0 z-20" @click="isPresenceMenuOpen = false" />
+      <PresenceMenu
+        class="absolute left-3 top-14 z-30"
+        @close="isPresenceMenuOpen = false"
+        @keydown.esc="isPresenceMenuOpen = false"
+      />
+    </template>
 
     <ConversationList v-if="view === 'list'" />
     <ContactPicker v-else-if="view === 'contacts'" />

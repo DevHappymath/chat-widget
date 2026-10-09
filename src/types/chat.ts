@@ -19,6 +19,18 @@ export const MessageType = {
 } as const;
 export type MessageType = (typeof MessageType)[keyof typeof MessageType];
 
+/** Trạng thái hoạt động người khác thấy cạnh tên. */
+export const PresenceStatus = {
+  Offline: 0,
+  Available: 1,
+  Busy: 2,
+  /** Như Bận, thêm việc widget của chính người đó không bật thẻ báo tin, không nháy tab. */
+  DoNotDisturb: 3,
+  BeRightBack: 4,
+  Away: 5,
+} as const;
+export type PresenceStatus = (typeof PresenceStatus)[keyof typeof PresenceStatus];
+
 /** Nhóm người dùng chat do bootstrap trả về. */
 export const ChatAudience = {
   None: 0,
@@ -55,6 +67,7 @@ export interface ChatParticipant {
   role: ParticipantRole;
   /** Ảnh chụp tại thời điểm server dựng response; realtime cập nhật qua PresenceChanged. */
   isOnline: boolean;
+  status?: PresenceStatus;
   lastReadSequence: number;
   joinedAtUtc: string;
 }
@@ -213,7 +226,32 @@ export interface ConversationRead {
 export interface UserPresence {
   userId: string;
   isOnline: boolean;
+  status: PresenceStatus;
+  statusMessage?: string | null;
   atUtc: string;
+}
+
+/** Trạng thái của chính mình, kèm phần tự đặt để dựng bảng chọn trạng thái. */
+export interface MyPresence {
+  /** Trạng thái người khác đang thấy. */
+  status: PresenceStatus;
+  /** Null là đang để tự động. */
+  manualStatus?: PresenceStatus | null;
+  statusExpiresAtUtc?: string | null;
+  message?: string | null;
+  messageExpiresAtUtc?: string | null;
+}
+
+export interface SetPresenceStatusCommand {
+  /** Available là về tự động. */
+  status: PresenceStatus;
+  expiresAtUtc?: string | null;
+}
+
+export interface SetPresenceMessageCommand {
+  /** Để trống là xoá lời nhắn. */
+  message?: string | null;
+  expiresAtUtc?: string | null;
 }
 
 export interface TypingSignal {

@@ -21,7 +21,10 @@ import type {
   MessageSearchItem,
   MessageSearchRequest,
   MessageSearchResponse,
+  MyPresence,
   SendMessageCommand,
+  SetPresenceMessageCommand,
+  SetPresenceStatusCommand,
   SetMessageReactionCommand,
   StickerPack,
   UpdateConversationSettingsCommand,
@@ -229,6 +232,17 @@ export const fileApi = {
 export const stickerApi = {
   /** Danh sách ít đổi, widget chỉ tải một lần cho cả phiên. */
   getPacks: () => useHttp().get<ApiEnvelope<StickerPack[]>>("/stickers"),
+};
+
+/** `api/presence/me` - trạng thái và lời nhắn của chính người đang đăng nhập. */
+export const presenceApi = {
+  getMine: () => useHttp().get<ApiEnvelope<MyPresence>>("/presence/me"),
+
+  setStatus: (command: SetPresenceStatusCommand) =>
+    useHttp().put<ApiEnvelope<MyPresence>>("/presence/me/status", command),
+
+  setMessage: (command: SetPresenceMessageCommand) =>
+    useHttp().put<ApiEnvelope<MyPresence>>("/presence/me/message", command),
 };
 
 export const userApi = {

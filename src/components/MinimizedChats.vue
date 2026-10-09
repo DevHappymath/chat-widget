@@ -11,7 +11,7 @@ const {
   restoreMinimized,
   dismissMinimized,
   isGroup,
-  isOnline,
+  statusOf,
   partnerOf,
   titleOf,
 } = useChatStore();
@@ -62,7 +62,7 @@ const unreadLabel = (count: number) => (count > 9 ? "9+" : `${count}`);
             :name="titleOf(conversation)"
             :variant="isGroup(conversation) ? 'group' : 'user'"
             :src="conversation.avatarUrl"
-            :is-online="isOnline(partnerOf(conversation)?.userId)"
+            :status="statusOf(partnerOf(conversation)?.userId)"
             :show-presence="!isGroup(conversation)"
             size="md"
           />

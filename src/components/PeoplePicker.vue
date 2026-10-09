@@ -31,7 +31,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{ pick: [person: AppUser] }>();
 
-const { currentUserId, isOnline, isStudent } = useChatStore();
+const { currentUserId, statusOf, isStudent } = useChatStore();
 
 // Học sinh không thấy email của giáo viên nên chỉ gợi ý tìm theo tên.
 const searchPlaceholder = computed(
@@ -126,7 +126,7 @@ onMounted(load);
             <WidgetAvatar
               :name="displayNameOf(person)"
               size="sm"
-              :is-online="isOnline(person.id)"
+              :status="statusOf(person.id)"
               show-presence
             />
             <span class="min-w-0 flex-1">

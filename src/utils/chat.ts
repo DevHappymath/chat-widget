@@ -1,5 +1,7 @@
+import { PRESENCE_LABELS } from "../constants/presence";
 import {
   MessageType,
+  PresenceStatus,
   type ChatConversation,
   type ChatMessage,
   type MessageReaction,
@@ -36,13 +38,13 @@ export const chatDayLabel = (iso: string): string => {
 };
 
 /**
- * Backend không lưu mốc offline cuối cùng, chỉ có online hay không, nên nhãn dừng ở hai
- * trạng thái; truyền `lastSeenAt` khi muốn gợi ý lần xuất hiện gần nhất.
+ * Backend không lưu mốc offline cuối cùng; truyền `lastSeenAt` khi muốn gợi ý lần xuất hiện
+ * gần nhất thay cho chữ "Ngoại tuyến".
  */
-export const presenceLabel = (isOnline: boolean, lastSeenAt?: string | null): string => {
-  if (isOnline) return "Đang hoạt động";
+export const presenceLabel = (status: PresenceStatus, lastSeenAt?: string | null): string => {
+  if (status !== PresenceStatus.Offline) return PRESENCE_LABELS[status];
   if (lastSeenAt) return `Hoạt động ${formatRelativeTime(lastSeenAt)}`;
-  return "Ngoại tuyến";
+  return PRESENCE_LABELS[PresenceStatus.Offline];
 };
 
 export interface MessageCluster {

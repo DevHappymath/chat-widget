@@ -606,6 +606,8 @@ export const useChatStore = () => {
 
     const conversation = await resolveConversation(message.conversationId);
     if (conversation && isMutedNow(conversation)) return;
+    // Không làm phiền chỉ bỏ phần làm người dùng giật mình; tin và số chưa đọc vẫn về như thường.
+    if (presence.isDoNotDisturb.value) return;
 
     announceTabMessage();
     if (isPanelOpen.value) return;
@@ -1544,7 +1546,7 @@ export const useChatStore = () => {
 
       subscribe();
       await startHub(res.data.data.hubPath);
-      presence.start();
+      presence.start(currentUserId.value);
     } catch (err) {
       bootError.value = extractErrorMessage(err);
     } finally {
@@ -1707,6 +1709,11 @@ export const useChatStore = () => {
     myReactionsOf,
     reactedByMe,
     isOnline: presence.isOnline,
+    statusOf: presence.statusOf,
+    statusMessageOf: presence.messageOf,
+    myPresence: presence.mine,
+    setPresenceStatus: presence.setStatus,
+    setPresenceMessage: presence.setMessage,
     // hành động
     init,
     refreshBadge,

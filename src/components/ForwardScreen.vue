@@ -13,7 +13,7 @@ const {
   conversations,
   forwardingMessage,
   isGroup,
-  isOnline,
+  statusOf,
   titleOf,
   partnerOf,
   forwardMessage,
@@ -117,7 +117,7 @@ const submit = async () => {
               :name="titleOf(conversation)"
               :variant="isGroup(conversation) ? 'group' : 'user'"
               :src="conversation.avatarUrl"
-              :is-online="isOnline(partnerOf(conversation)?.userId)"
+              :status="statusOf(partnerOf(conversation)?.userId)"
               :show-presence="!isGroup(conversation)"
               size="sm"
             />

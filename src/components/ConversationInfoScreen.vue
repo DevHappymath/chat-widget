@@ -22,7 +22,8 @@ const {
   activeConversation,
   attachmentRule,
   isGroup,
-  isOnline,
+  statusOf,
+  statusMessageOf,
   partnerOf,
   titleOf,
   membersOf,
@@ -61,6 +62,8 @@ const group = computed(() =>
 const partner = computed(() =>
   activeConversation.value ? partnerOf(activeConversation.value) : undefined,
 );
+
+const partnerStatusMessage = computed(() => statusMessageOf(partner.value?.userId));
 
 const members = computed(() =>
   activeConversation.value ? membersOf(activeConversation.value) : [],
@@ -297,7 +300,7 @@ onBeforeUnmount(() => {
         :name="titleOf(activeConversation)"
         :variant="group ? 'group' : 'user'"
         :src="isEditing ? avatarUrl : activeConversation.avatarUrl"
-        :is-online="isOnline(partner?.userId)"
+        :status="statusOf(partner?.userId)"
         :show-presence="!group"
         size="lg"
       />
@@ -375,8 +378,14 @@ onBeforeUnmount(() => {
           {{
             group
               ? `${members.length} thành viên`
-              : presenceLabel(isOnline(partner?.userId))
+              : presenceLabel(statusOf(partner?.userId))
           }}
+        </p>
+        <p
+          v-if="!group && partnerStatusMessage"
+          class="mt-1 max-w-full break-words rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-700"
+        >
+          {{ partnerStatusMessage }}
         </p>
       </template>
     </div>
@@ -422,7 +431,7 @@ onBeforeUnmount(() => {
           <WidgetAvatar
             :name="displayNameOf(member)"
             size="xs"
-            :is-online="isOnline(member.userId)"
+            :status="statusOf(member.userId)"
             show-presence
           />
           <span class="min-w-0 flex-1">
