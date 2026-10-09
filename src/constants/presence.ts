@@ -39,16 +39,29 @@ export const PRESENCE_OPTIONS: readonly PresenceOption[] = [
   { status: PresenceStatus.Offline, label: "Hiện là ngoại tuyến" },
 ];
 
-export type PresenceDuration = "30m" | "1h" | "2h" | "4h" | "today" | "week" | "never";
+export type PresenceDuration =
+  | "30m"
+  | "1h"
+  | "4h"
+  | "1d"
+  | "1w"
+  | "today"
+  | "week"
+  | "custom"
+  | "never";
 
+/** "Tuỳ chọn" để nơi gọi tự hỏi ngày giờ, `resolveExpiry` không tính được. */
 export const STATUS_DURATIONS: readonly { key: PresenceDuration; label: string }[] = [
   { key: "30m", label: "30 phút" },
-  { key: "1h", label: "1 giờ" },
-  { key: "2h", label: "2 giờ" },
-  { key: "today", label: "Hết hôm nay" },
-  { key: "week", label: "Hết tuần này" },
-  { key: "never", label: "Không tự đổi" },
+  { key: "1h", label: "1 tiếng" },
+  { key: "1d", label: "1 ngày" },
+  { key: "1w", label: "1 tuần" },
+  { key: "custom", label: "Tuỳ chọn" },
+  { key: "never", label: "Không bao giờ" },
 ];
+
+/** Server không nhận mốc xa hơn số ngày này (ChatRule.MaxPresenceDurationDays). */
+export const MAX_PRESENCE_DURATION_DAYS = 31;
 
 export const MESSAGE_DURATIONS: readonly { key: PresenceDuration; label: string }[] = [
   { key: "never", label: "Không xoá" },
@@ -58,11 +71,17 @@ export const MESSAGE_DURATIONS: readonly { key: PresenceDuration; label: string 
   { key: "week", label: "Hết tuần này" },
 ];
 
-const MINUTES: Partial<Record<PresenceDuration, number>> = { "30m": 30, "1h": 60, "2h": 120, "4h": 240 };
+const MINUTES: Partial<Record<PresenceDuration, number>> = {
+  "30m": 30,
+  "1h": 60,
+  "4h": 240,
+  "1d": 24 * 60,
+  "1w": 7 * 24 * 60,
+};
 
 /** Mốc hết hạn theo giờ máy người dùng; "hết tuần" là hết Chủ nhật. */
 export const resolveExpiry = (duration: PresenceDuration, now = new Date()): string | null => {
-  if (duration === "never") return null;
+  if (duration === "never" || duration === "custom") return null;
 
   const minutes = MINUTES[duration];
   if (minutes) return new Date(now.getTime() + minutes * 60_000).toISOString();

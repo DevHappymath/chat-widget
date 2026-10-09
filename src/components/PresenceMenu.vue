@@ -6,7 +6,6 @@ import {
   ownPresenceLabel,
   PRESENCE_OPTIONS,
   resolveExpiry,
-  STATUS_DURATIONS,
   type PresenceDuration,
 } from "../constants/presence";
 import { useChatStore } from "../core/store/useChatStore";
@@ -18,8 +17,11 @@ import PresenceDot from "./PresenceDot.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
-/** Bảng đặt trạng thái và lời nhắn của chính mình. Nơi gọi lo vị trí và lúc đóng. */
-const emit = defineEmits<{ close: [] }>();
+/**
+ * Bảng đặt trạng thái và lời nhắn của chính mình. Nơi gọi lo vị trí và lúc đóng; chọn trạng thái
+ * tự đặt thì phát `choose` để nơi gọi mở bước hỏi thời hạn.
+ */
+const emit = defineEmits<{ close: []; choose: [status: PresenceStatus] }>();
 
 const { currentUserName, myPresence, setPresenceStatus, setPresenceMessage } = useChatStore();
 const toast = useWidgetToast();
@@ -37,9 +39,6 @@ const statusUntil = computed(() =>
     : null,
 );
 
-// Người đặt "Bận" rồi quên là chuyện thường, nên mặc định tự trở về trong ngày.
-const statusDuration = ref<PresenceDuration>("today");
-
 const run = async (action: () => Promise<void>) => {
   if (isSaving.value) return;
   isSaving.value = true;
@@ -54,13 +53,14 @@ const run = async (action: () => Promise<void>) => {
   }
 };
 
+// Sẵn sàng là về tự động nên không có gì để hỏi thêm, đổi ngay.
 const pickStatus = async (status: PresenceStatus) => {
-  const ok = await run(() =>
-    setPresenceStatus({
-      status,
-      expiresAtUtc: status === PresenceStatus.Available ? null : resolveExpiry(statusDuration.value),
-    }),
-  );
+  if (status !== PresenceStatus.Available) {
+    emit("choose", status);
+    return;
+  }
+
+  const ok = await run(() => setPresenceStatus({ status }));
   if (ok) emit("close");
 };
 
@@ -112,14 +112,6 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
         </p>
       </div>
     </div>
-
-    <!-- Bấm trạng thái là lưu ngay, nên thời hạn phải nằm trên để chọn trước. -->
-    <DurationChips
-      v-model="statusDuration"
-      label="Tự trở về Sẵn sàng sau"
-      :options="STATUS_DURATIONS"
-      class="border-b border-gray-100 px-3 py-2.5"
-    />
 
     <ul class="py-1" role="listbox" aria-label="Chọn trạng thái">
       <li v-for="option in PRESENCE_OPTIONS" :key="option.status">

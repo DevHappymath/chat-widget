@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { ownPresenceLabel } from "../constants/presence";
+import type { PresenceStatus } from "../types/chat";
 import { useChatStore, type WidgetView } from "../core/store/useChatStore";
 import AddMembersScreen from "./AddMembersScreen.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
@@ -15,6 +16,7 @@ import MessageThread from "./MessageThread.vue";
 import NewGroupScreen from "./NewGroupScreen.vue";
 import PresenceDot from "./PresenceDot.vue";
 import PresenceMenu from "./PresenceMenu.vue";
+import PresenceStatusDialog from "./PresenceStatusDialog.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 import WidgetToaster from "./WidgetToaster.vue";
 
@@ -50,6 +52,12 @@ const heading = computed(() =>
 const showBack = computed(() => view.value !== "list");
 
 const isPresenceMenuOpen = ref(false);
+const pendingStatus = ref<PresenceStatus | null>(null);
+
+const choosePresence = (status: PresenceStatus) => {
+  isPresenceMenuOpen.value = false;
+  pendingStatus.value = status;
+};
 
 // Ở danh sách hội thoại, dòng phụ thành nút đặt trạng thái; server chưa hỗ trợ thì giữ tên như cũ.
 const showPresenceTrigger = computed(() => view.value === "list" && Boolean(myPresence.value));
@@ -138,9 +146,16 @@ const subheading = computed(() => {
       <PresenceMenu
         class="absolute left-3 top-14 z-30"
         @close="isPresenceMenuOpen = false"
+        @choose="choosePresence"
         @keydown.esc="isPresenceMenuOpen = false"
       />
     </template>
+
+    <PresenceStatusDialog
+      v-if="pendingStatus !== null"
+      :status="pendingStatus"
+      @close="pendingStatus = null"
+    />
 
     <ConversationList v-if="view === 'list'" />
     <ContactPicker v-else-if="view === 'contacts'" />
