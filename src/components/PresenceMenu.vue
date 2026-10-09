@@ -99,15 +99,15 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
 
 <template>
   <div
-    class="w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white text-gray-900 shadow-xl"
+    class="w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-gray-200 bg-white text-gray-900 shadow-2xl"
     role="dialog"
     aria-label="Trạng thái của bạn"
   >
     <div class="flex items-center gap-2.5 border-b border-gray-100 px-3 py-3">
       <WidgetAvatar :name="currentUserName" :status="current" show-presence size="sm" />
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-semibold">{{ currentUserName }}</p>
-        <p class="truncate text-[11px] text-gray-600">
+        <p class="truncate text-sm font-semibold text-gray-900">{{ currentUserName }}</p>
+        <p class="truncate text-xs text-gray-700">
           <template v-if="myPresence">{{ ownPresenceLabel(myPresence) }}</template><template v-if="statusUntil"> · {{ statusUntil }}</template>
         </p>
       </div>
@@ -119,14 +119,15 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
           type="button"
           role="option"
           :aria-selected="selected === option.status"
-          class="flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors hover:bg-gray-50 disabled:opacity-60"
+          class="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors disabled:opacity-60"
+          :class="selected === option.status ? 'bg-chat-accent/5' : 'hover:bg-gray-50'"
           :disabled="isSaving"
           @click="pickStatus(option.status)"
         >
-          <PresenceDot :status="option.status" class="h-3 w-3 shrink-0" />
+          <PresenceDot :status="option.status" class="h-3.5 w-3.5 shrink-0" />
           <span class="min-w-0 flex-1">
-            <span class="block text-xs font-medium text-gray-800">{{ option.label }}</span>
-            <span v-if="option.hint" class="block truncate text-[11px] text-gray-500">
+            <span class="block text-[13px] font-medium text-gray-900">{{ option.label }}</span>
+            <span v-if="option.hint" class="block truncate text-xs text-gray-600">
               {{ option.hint }}
             </span>
           </span>
@@ -192,8 +193,8 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
           aria-label="Sửa lời nhắn trạng thái"
           @click="startEditMessage"
         >
-          <span class="block break-words text-xs text-gray-800">{{ myPresence.message }}</span>
-          <span v-if="messageUntil" class="mt-0.5 block text-[10px] text-gray-500">
+          <span class="block break-words text-[13px] text-gray-900">{{ myPresence.message }}</span>
+          <span v-if="messageUntil" class="mt-0.5 block text-[11px] text-gray-600">
             Hiện {{ messageUntil }}
           </span>
         </button>
@@ -212,7 +213,7 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
       <button
         v-else
         type="button"
-        class="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-xs font-medium text-chat-accent-strong transition-colors hover:bg-chat-accent/10"
+        class="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-[13px] font-semibold text-chat-accent-strong transition-colors hover:bg-chat-accent/10"
         @click="startEditMessage"
       >
         <WidgetIcon name="MessageSquarePlus" :size="15" />

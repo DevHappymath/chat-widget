@@ -12,7 +12,7 @@ const model = defineModel<PresenceDuration>({ required: true });
 
 <template>
   <div role="radiogroup" :aria-label="label">
-    <p class="mb-1.5 text-[11px] text-gray-500">{{ label }}</p>
+    <p class="mb-1.5 text-xs font-medium text-gray-700">{{ label }}</p>
     <div class="flex flex-wrap gap-1.5">
       <button
         v-for="option in options"
@@ -20,11 +20,11 @@ const model = defineModel<PresenceDuration>({ required: true });
         type="button"
         role="radio"
         :aria-checked="model === option.key"
-        class="rounded-full border px-2.5 py-1 text-[11px] leading-none transition-colors"
+        class="rounded-full border px-2.5 py-1.5 text-xs leading-none transition-colors"
         :class="
           model === option.key
             ? 'border-chat-accent/40 bg-chat-accent/10 font-semibold text-chat-accent-strong'
-            : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-800'
+            : 'border-gray-300 text-gray-700 hover:bg-gray-50 hover:text-gray-900'
         "
         @click="model = option.key"
       >

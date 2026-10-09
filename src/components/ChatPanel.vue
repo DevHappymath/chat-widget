@@ -94,13 +94,13 @@ const subheading = computed(() => {
         <button
           v-if="showPresenceTrigger && myPresence"
           type="button"
-          class="-mx-1 flex max-w-full items-center gap-1.5 rounded-full px-1 text-[11px] text-white/85 transition-colors hover:bg-white/15 hover:text-white"
+          class="-mx-1 flex max-w-full items-center gap-1.5 rounded-full px-1 text-xs font-medium text-white transition-colors hover:bg-white/15"
           :aria-expanded="isPresenceMenuOpen"
           aria-haspopup="dialog"
           :title="currentUserName"
           @click="isPresenceMenuOpen = !isPresenceMenuOpen"
         >
-          <PresenceDot :status="myPresence.status" class="h-2 w-2 shrink-0 ring-1 ring-white/80" />
+          <PresenceDot :status="myPresence.status" class="h-2.5 w-2.5 shrink-0 ring-2 ring-white" />
           <span class="truncate">
             {{ ownPresenceLabel(myPresence) }}<template v-if="myPresence.message"> · {{ myPresence.message }}</template>
           </span>
