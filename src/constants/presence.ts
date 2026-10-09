@@ -51,7 +51,7 @@ export const STATUS_DURATIONS: readonly { key: PresenceDuration; label: string }
 ];
 
 export const MESSAGE_DURATIONS: readonly { key: PresenceDuration; label: string }[] = [
-  { key: "never", label: "Không tự xoá" },
+  { key: "never", label: "Không xoá" },
   { key: "1h", label: "1 giờ" },
   { key: "4h", label: "4 giờ" },
   { key: "today", label: "Hết hôm nay" },

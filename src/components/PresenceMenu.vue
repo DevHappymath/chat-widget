@@ -13,6 +13,7 @@ import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import { PresenceStatus } from "../types/chat";
 import { extractErrorMessage } from "../utils/error";
+import DurationChips from "./DurationChips.vue";
 import PresenceDot from "./PresenceDot.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -112,6 +113,14 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
       </div>
     </div>
 
+    <!-- Bấm trạng thái là lưu ngay, nên thời hạn phải nằm trên để chọn trước. -->
+    <DurationChips
+      v-model="statusDuration"
+      label="Tự trở về Sẵn sàng sau"
+      :options="STATUS_DURATIONS"
+      class="border-b border-gray-100 px-3 py-2.5"
+    />
+
     <ul class="py-1" role="listbox" aria-label="Chọn trạng thái">
       <li v-for="option in PRESENCE_OPTIONS" :key="option.status">
         <button
@@ -139,16 +148,6 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
       </li>
     </ul>
 
-    <label class="flex items-center gap-2 border-t border-gray-100 px-3 py-2 text-[11px] text-gray-600">
-      <span class="flex-1">Tự trở về Sẵn sàng</span>
-      <select
-        v-model="statusDuration"
-        class="rounded-md border border-gray-200 bg-white py-1 pl-2 pr-7 text-[11px] text-gray-800 focus:border-chat-accent focus:ring-0"
-      >
-        <option v-for="d in STATUS_DURATIONS" :key="d.key" :value="d.key">{{ d.label }}</option>
-      </select>
-    </label>
-
     <div class="border-t border-gray-100 px-3 py-2.5">
       <template v-if="isEditingMessage">
         <div class="relative">
@@ -168,15 +167,12 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
           </span>
         </div>
 
-        <label class="mt-2 flex items-center gap-2 text-[11px] text-gray-600">
-          <span class="flex-1">Tự xoá sau</span>
-          <select
-            v-model="messageDuration"
-            class="rounded-md border border-gray-200 bg-white py-1 pl-2 pr-7 text-[11px] text-gray-800 focus:border-chat-accent focus:ring-0"
-          >
-            <option v-for="d in MESSAGE_DURATIONS" :key="d.key" :value="d.key">{{ d.label }}</option>
-          </select>
-        </label>
+        <DurationChips
+          v-model="messageDuration"
+          label="Tự xoá lời nhắn sau"
+          :options="MESSAGE_DURATIONS"
+          class="mt-2.5"
+        />
 
         <div class="mt-2.5 flex justify-end gap-2">
           <button
