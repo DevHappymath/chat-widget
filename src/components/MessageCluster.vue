@@ -4,7 +4,7 @@ import { useChatStore } from "../core/store/useChatStore";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
 import type { ChatMessage, MessageAttachment } from "../types/chat";
 import type { MessageCluster } from "../utils/chat";
-import { countEmojiOnly, linkifySegments, splitMentions } from "../utils/chat";
+import { countEmojiOnly, linkifySegments, splitMentions, summaryPreview } from "../utils/chat";
 import { formatBytes, formatDateISO, formatDateTime, formatTime } from "../utils/format";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -384,11 +384,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                         class="mt-0.5 block truncate text-[11px]"
                         :class="cluster.isOwn ? 'text-white/80' : 'text-gray-600'"
                       >
-                        {{
-                          message.replyTo.isDeleted
-                            ? "Tin nhắn đã bị thu hồi"
-                            : message.replyTo.content
-                        }}
+                        {{ summaryPreview(message.replyTo) }}
                       </span>
                     </span>
                   </button>
@@ -431,6 +427,18 @@ const onEditKeydown = (event: KeyboardEvent) => {
                   <WidgetIcon name="Forward" :size="10" />
                   {{ forwardedFromLabel(message) }}
                 </p>
+
+                <img
+                  v-if="message.sticker"
+                  :src="message.sticker.url"
+                  :alt="`Nhãn dán ${message.sticker.name}`"
+                  :title="message.sticker.name"
+                  width="120"
+                  height="120"
+                  loading="lazy"
+                  draggable="false"
+                  class="size-30"
+                />
 
                 <p
                   v-if="emojiOnlyCount(message)"
@@ -508,7 +516,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
             <div class="min-w-0 ps-1">
               <button
                 type="button"
-                class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors duration-200 active:scale-95"
+                class="inline-flex items-center gap-1 rounded-full border py-0.5 pl-1.5 pr-2 text-xs transition-colors duration-200 active:scale-95"
                 :class="[
                   reactedByMe(reaction)
                     ? 'border-chat-accent/40 bg-chat-accent/10 text-chat-accent-strong'
@@ -519,7 +527,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                 @click="react(message, reaction.emoji)"
                 @animationend="poppedKey = null"
               >
-                <span class="reaction-emoji">{{ reaction.emoji }}</span>
+                <span class="reaction-emoji text-base leading-5">{{ reaction.emoji }}</span>
                 <span class="inline-grid overflow-hidden tabular-nums">
                   <Transition name="reaction-count">
                     <span :key="reaction.count" class="col-start-1 row-start-1">
@@ -543,7 +551,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                 aria-label="Thả thêm biểu tượng"
                 @click="openEmojiPickerFromButton($event, message)"
               >
-                <WidgetIcon name="SmilePlus" :size="13" />
+                <WidgetIcon name="SmilePlus" :size="15" />
               </button>
             </div>
           </li>

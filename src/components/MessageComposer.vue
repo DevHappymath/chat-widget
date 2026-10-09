@@ -4,11 +4,12 @@ import { MAX_ATTACHMENTS_PER_MESSAGE } from "../constants/attachment";
 import { fileApi } from "../core/services";
 import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetToast } from "../core/store/useWidgetToast";
-import type { ChatParticipant, UploadedFile } from "../types/chat";
+import type { ChatParticipant, Sticker, UploadedFile } from "../types/chat";
 import { messagePreview, normalizeName, pastedImageFiles, splitMentions } from "../utils/chat";
 import { extractErrorMessage } from "../utils/error";
 import { formatBytes } from "../utils/format";
 import EmojiPicker from "./EmojiPicker.vue";
+import StickerPicker from "./StickerPicker.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -19,6 +20,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   send: [content: string, attachments: UploadedFile[], mentionedUserIds: string[]];
+  sendSticker: [sticker: Sticker];
   typing: [];
 }>();
 
@@ -185,6 +187,18 @@ const removeAttachment = (fileUrl: string) => {
 // ─── Biểu tượng cảm xúc ────────────────────────────────────────────────────────
 
 const isEmojiPickerOpen = ref(false);
+
+type PickerTab = "emoji" | "sticker";
+const PICKER_TABS: { key: PickerTab; label: string }[] = [
+  { key: "emoji", label: "Biểu tượng" },
+  { key: "sticker", label: "Nhãn dán" },
+];
+const pickerTab = ref<PickerTab>("emoji");
+
+const sendSticker = (sticker: Sticker) => {
+  isEmojiPickerOpen.value = false;
+  emit("sendSticker", sticker);
+};
 
 /** Chèn đúng chỗ con trỏ và để bảng mở, chọn liền mấy biểu tượng không phải mở lại. */
 const insertEmoji = (emoji: string) => {
@@ -407,8 +421,8 @@ defineExpose({ focus });
             ? 'bg-chat-accent/10 text-chat-accent-strong'
             : 'text-gray-500 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
         "
-        title="Chèn biểu tượng cảm xúc"
-        aria-label="Chèn biểu tượng cảm xúc"
+        title="Biểu tượng và nhãn dán"
+        aria-label="Biểu tượng và nhãn dán"
         :aria-expanded="isEmojiPickerOpen"
         @click="isEmojiPickerOpen = !isEmojiPickerOpen"
       >
@@ -436,9 +450,30 @@ defineExpose({ focus });
     <Transition name="emoji-picker">
       <div
         v-if="isEmojiPickerOpen"
-        class="absolute bottom-full right-3 z-30 mb-2 w-72 max-w-[calc(100%-1.5rem)] origin-bottom-right"
+        class="absolute bottom-full right-3 z-30 mb-2 w-80 max-w-[calc(100%-1.5rem)] origin-bottom-right overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
       >
-        <EmojiPicker @pick="insertEmoji" />
+        <div role="tablist" class="flex gap-1 border-b border-gray-100 px-2 pt-2">
+          <button
+            v-for="tab in PICKER_TABS"
+            :key="tab.key"
+            type="button"
+            role="tab"
+            :aria-selected="pickerTab === tab.key"
+            class="-mb-px border-b-2 px-2.5 pb-1.5 text-xs font-semibold transition-colors"
+            :class="
+              pickerTab === tab.key
+                ? 'border-chat-accent-strong text-chat-accent-strong'
+                : 'border-transparent text-gray-500 hover:text-gray-800'
+            "
+            @click="pickerTab = tab.key"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <!-- Nhãn dán chỉ dựng khi mở tab để không tải danh mục cho người chỉ chèn biểu tượng. -->
+        <EmojiPicker v-show="pickerTab === 'emoji'" bare @pick="insertEmoji" />
+        <StickerPicker v-if="pickerTab === 'sticker'" @pick="sendSticker" />
       </div>
     </Transition>
 

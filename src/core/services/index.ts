@@ -23,6 +23,7 @@ import type {
   MessageSearchResponse,
   SendMessageCommand,
   SetMessageReactionCommand,
+  StickerPack,
   UpdateConversationSettingsCommand,
   UpdateGroupConversationCommand,
   UpdateMessageCommand,
@@ -223,6 +224,11 @@ export const fileApi = {
     form.append("file", file);
     return useHttp().post<ApiEnvelope<UploadedFile>>("/files", form);
   },
+};
+
+export const stickerApi = {
+  /** Danh sách ít đổi, widget chỉ tải một lần cho cả phiên. */
+  getPacks: () => useHttp().get<ApiEnvelope<StickerPack[]>>("/stickers"),
 };
 
 export const userApi = {

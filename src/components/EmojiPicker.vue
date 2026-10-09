@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
+import { EMOJI_KEYWORDS } from "../constants/emoji-keywords";
 import { EMOJI_CATEGORIES, type EmojiCategory } from "../constants/reaction";
+import { matchesAllWords, normalizeName } from "../utils/chat";
 import WidgetIcon from "./WidgetIcon.vue";
 
 /**
@@ -11,15 +13,20 @@ const props = withDefaults(
   defineProps<{
     /** Biểu tượng đang được chọn sẵn, tô nền để người dùng biết bấm lại là gỡ. */
     selected?: readonly string[];
+    /** Bỏ khung và bóng khi nằm trong một khung khác đã có sẵn, như thẻ chọn của ô soạn tin. */
+    bare?: boolean;
   }>(),
-  { selected: () => [] },
+  { selected: () => [], bare: false },
 );
 
 const emit = defineEmits<{ pick: [emoji: string] }>();
 
 // Widget chạy chung origin với site chủ nên khoá phải có tiền tố riêng, tránh đè dữ liệu của site.
 const RECENT_KEY = "gdtd-chat.recentEmojis";
-const RECENT_LIMIT = 16;
+const RECENT_LIMIT = 14;
+
+const CELL_CLASS =
+  "inline-flex aspect-square items-center justify-center rounded-lg text-2xl leading-none transition-transform hover:scale-110 hover:bg-gray-100 active:scale-95";
 
 const readRecent = (): string[] => {
   try {
@@ -41,6 +48,30 @@ const sections = computed<EmojiCategory[]>(() =>
     : [...EMOJI_CATEGORIES],
 );
 
+// ─── Tìm kiếm ─────────────────────────────────────────────────────────────────
+
+const query = ref("");
+const isSearching = computed(() => Boolean(query.value.trim()));
+
+let searchIndex: { emoji: string; text: string }[] | null = null;
+
+// Dựng lúc gõ chữ đầu tiên chứ không dựng sẵn: đa số lần mở bảng chỉ để bấm chọn.
+const getSearchIndex = () =>
+  (searchIndex ??= [...new Set(EMOJI_CATEGORIES.flatMap((c) => c.emojis))].map((emoji) => ({
+    emoji,
+    text: normalizeName(EMOJI_KEYWORDS[emoji] ?? ""),
+  })));
+
+const results = computed(() =>
+  isSearching.value
+    ? getSearchIndex()
+        .filter((entry) => matchesAllWords(entry.text, query.value))
+        .map((entry) => entry.emoji)
+    : [],
+);
+
+// ─── Nhảy mục ─────────────────────────────────────────────────────────────────
+
 const scroller = ref<HTMLElement | null>(null);
 const sectionEls: Record<string, HTMLElement> = {};
 const activeKey = ref(sections.value[0]!.key);
@@ -49,7 +80,13 @@ const bindSection = (key: string) => (el: unknown) => {
   if (el) sectionEls[key] = el as HTMLElement;
 };
 
-const jumpTo = (key: string) => {
+const jumpTo = async (key: string) => {
+  // Khung danh mục bị ẩn lúc đang tìm nên chưa đo được vị trí, phải chờ nó hiện lại.
+  if (isSearching.value) {
+    query.value = "";
+    await nextTick();
+  }
+
   const el = sectionEls[key];
   if (!el || !scroller.value) return;
 
@@ -59,7 +96,7 @@ const jumpTo = (key: string) => {
 
 const syncActive = () => {
   const container = scroller.value;
-  if (!container) return;
+  if (!container || isSearching.value) return;
 
   // Khung cuộn là `relative` nên offsetTop của từng mục tính từ đầu khung.
   const top = container.scrollTop + 8;
@@ -90,16 +127,45 @@ const isSelected = (emoji: string) => props.selected.includes(emoji);
 
 <template>
   <div
-    class="flex h-72 w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl"
+    class="flex h-80 w-full flex-col overflow-hidden bg-white"
+    :class="!bare && 'rounded-xl border border-gray-200 shadow-xl'"
   >
-    <nav class="flex shrink-0 items-center justify-between border-b border-gray-100 px-1.5 py-1">
+    <div class="shrink-0 px-2 pt-2">
+      <label
+        class="flex h-8 items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 text-gray-500 ring-1 ring-transparent transition-colors focus-within:bg-white focus-within:ring-chat-accent/50"
+      >
+        <WidgetIcon name="Search" :size="14" />
+        <input
+          v-model="query"
+          type="text"
+          placeholder="Tìm biểu tượng"
+          aria-label="Tìm biểu tượng"
+          class="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0"
+          @keydown.esc.stop="query = ''"
+        />
+        <button
+          v-if="isSearching"
+          type="button"
+          class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
+          aria-label="Xoá từ khoá"
+          @click="query = ''"
+        >
+          <WidgetIcon name="X" :size="12" />
+        </button>
+      </label>
+    </div>
+
+    <!-- Giữ hàng mục cả lúc đang tìm để khung không nhảy; bấm vào mục là thoát tìm kiếm. -->
+    <nav
+      class="flex shrink-0 items-center justify-between border-b border-gray-100 px-1.5 py-1"
+    >
       <button
         v-for="section in sections"
         :key="section.key"
         type="button"
         class="inline-flex h-7 w-7 items-center justify-center rounded-lg transition-colors"
         :class="
-          activeKey === section.key
+          !isSearching && activeKey === section.key
             ? 'bg-chat-accent/10 text-chat-accent-strong'
             : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
         "
@@ -112,6 +178,29 @@ const isSelected = (emoji: string) => props.selected.includes(emoji);
     </nav>
 
     <div
+      v-if="isSearching"
+      class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2"
+    >
+      <div v-if="results.length" class="grid grid-cols-7 gap-0.5 pt-2">
+        <button
+          v-for="emoji in results"
+          :key="emoji"
+          type="button"
+          :class="[CELL_CLASS, isSelected(emoji) && 'bg-chat-accent/10 ring-1 ring-chat-accent/30']"
+          :aria-label="emoji"
+          @click="pick(emoji)"
+        >
+          {{ emoji }}
+        </button>
+      </div>
+      <p v-else class="px-2 py-10 text-center text-xs text-gray-500">
+        Không tìm thấy biểu tượng nào
+      </p>
+    </div>
+
+    <!-- Ẩn bằng v-show để giữ nguyên vị trí cuộn khi xoá từ khoá. -->
+    <div
+      v-show="!isSearching"
       ref="scroller"
       class="gdtd-chat-scroll relative min-h-0 flex-1 overflow-y-auto px-1.5 pb-2"
       @scroll.passive="syncActive"
@@ -122,13 +211,12 @@ const isSelected = (emoji: string) => props.selected.includes(emoji);
         >
           {{ section.label }}
         </h3>
-        <div class="grid grid-cols-8 gap-0.5">
+        <div class="grid grid-cols-7 gap-0.5">
           <button
             v-for="emoji in section.emojis"
             :key="emoji"
             type="button"
-            class="inline-flex aspect-square items-center justify-center rounded-lg text-lg transition-transform hover:scale-110 hover:bg-gray-100 active:scale-95"
-            :class="isSelected(emoji) && 'bg-chat-accent/10 ring-1 ring-chat-accent/30'"
+            :class="[CELL_CLASS, isSelected(emoji) && 'bg-chat-accent/10 ring-1 ring-chat-accent/30']"
             :aria-label="emoji"
             @click="pick(emoji)"
           >

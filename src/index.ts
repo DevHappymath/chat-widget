@@ -25,6 +25,8 @@ export type {
   MessageReaction,
   MessageSearchItem,
   MessageSearchResponse,
+  Sticker,
+  StickerPack,
   UploadedFile,
 } from "./types/chat";
 export {

@@ -28,6 +28,7 @@ import {
   type MessageReactionsChanged,
   type MessageSearchItem,
   type MessageSummary,
+  type Sticker,
   type TypingSignal,
   type UpdateGroupConversationCommand,
   type UploadedFile,
@@ -794,14 +795,31 @@ export const useChatStore = () => {
 
   // ─── Hành động ──────────────────────────────────────────────────────────────
 
-  const sendMessage = async (
+  const sendMessage = (
     content: string,
     attachments: UploadedFile[] = [],
     mentionedUserIds: string[] = [],
   ) => {
     const body = content.trim();
-    if (!body && !attachments.length) return;
+    if (!body && !attachments.length) return Promise.resolve();
 
+    return postMessage({ body, attachments, mentionedUserIds, sticker: null });
+  };
+
+  const sendSticker = (sticker: Sticker) =>
+    postMessage({ body: "", attachments: [], mentionedUserIds: [], sticker });
+
+  const postMessage = async ({
+    body,
+    attachments,
+    mentionedUserIds,
+    sticker,
+  }: {
+    body: string;
+    attachments: UploadedFile[];
+    mentionedUserIds: string[];
+    sticker: Sticker | null;
+  }) => {
     let conversation = activeConversation.value;
 
     // Đang ở bản nháp: tạo hội thoại rồi mới gửi, người dùng chỉ thấy một hành động.
@@ -826,9 +844,10 @@ export const useChatStore = () => {
       sequence: conversation.lastSequence + 1 + pendingClientIds.value.length,
       senderId: currentUserId.value,
       senderName: currentUserName.value,
-      type: messageTypeOf(attachments),
+      type: sticker ? MessageType.Sticker : messageTypeOf(attachments),
       content: body,
       clientMessageId,
+      sticker,
       replyTo: replyingTo.value ? toMessageSummary(replyingTo.value) : null,
       // Giữ nguyên kích thước và thumbnail của lượt upload, nếu không bong bóng lạc quan
       // không có khung ảnh rồi giật một nhịp khi tin thật về.
@@ -865,6 +884,7 @@ export const useChatStore = () => {
         type: optimistic.type,
         content: body || null,
         replyToMessageId,
+        stickerId: sticker?.id ?? null,
         attachments: attachments.map((file) => ({
           fileUrl: file.fileUrl,
           fileName: file.fileName,
@@ -1696,6 +1716,7 @@ export const useChatStore = () => {
     openConversationWith,
     markRead,
     sendMessage,
+    sendSticker,
     deleteMessage,
     startReply,
     cancelReply,

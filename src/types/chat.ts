@@ -14,6 +14,8 @@ export const MessageType = {
   File: 3,
   /** Tin do server sinh khi nhóm đổi tên, thêm hoặc bớt thành viên. */
   System: 4,
+  /** Tin chỉ gồm một nhãn dán, không có chữ hay tệp. */
+  Sticker: 5,
 } as const;
 export type MessageType = (typeof MessageType)[keyof typeof MessageType];
 
@@ -68,6 +70,25 @@ export interface MessageAttachment {
   thumbnailUrl?: string | null;
 }
 
+export interface Sticker {
+  id: string;
+  /** Tên tiếng Việt, dùng để tìm kiếm và đọc cho trình đọc màn hình. */
+  name: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** Kết quả `GET /api/stickers`, chỉ gồm gói và nhãn dán đang bật. */
+export interface StickerPack {
+  id: string;
+  name: string;
+  /** Có giá trị thì bắt buộc hiện trong bảng chọn - giấy phép của gói yêu cầu ghi nguồn. */
+  attribution?: string | null;
+  attributionUrl?: string | null;
+  stickers: Sticker[];
+}
+
 export interface MessageReaction {
   emoji: string;
   count: number;
@@ -115,6 +136,8 @@ export interface ChatMessage {
   type: MessageType;
   content?: string | null;
   clientMessageId: string;
+  /** Có giá trị khi tin là nhãn dán và chưa bị thu hồi. */
+  sticker?: Sticker | null;
   replyTo?: MessageSummary | null;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
@@ -260,6 +283,8 @@ export interface SendMessageCommand {
   type: MessageType;
   content?: string | null;
   replyToMessageId?: string | null;
+  /** Bắt buộc khi `type` là nhãn dán; khi đó không kèm chữ, tệp hay nhắc tên. */
+  stickerId?: string | null;
   attachments: MessageAttachmentCommand[];
   /** Người được nhắc tên; phải là thành viên còn hoạt động của hội thoại. */
   mentionedUserIds: string[];

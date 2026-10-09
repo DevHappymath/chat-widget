@@ -39,15 +39,15 @@ const toast = useWidgetToast();
 const isWide = useIsWideViewport();
 
 const EDGE_PADDING = 8;
-const POPOVER_WIDTH = 248;
+const POPOVER_WIDTH = 272;
 const PICKER_WIDTH = 300;
-/** Khớp `h-72` của bảng biểu tượng. */
-const PICKER_HEIGHT = 288;
+/** Khớp `h-80` của bảng biểu tượng. */
+const PICKER_HEIGHT = 320;
 /** Hàng biểu tượng cộng đường kẻ; phần còn lại tính theo số hành động. */
-const POPOVER_HEADER_HEIGHT = 45;
+const POPOVER_HEADER_HEIGHT = 49;
 const ACTION_ROW_HEIGHT = 34;
 /** Bề rộng ước lượng của thanh biểu tượng nổi ở cảm ứng. */
-const REACTION_BAR_WIDTH = 284;
+const REACTION_BAR_WIDTH = 316;
 
 interface SheetAction {
   key: string;
@@ -238,7 +238,7 @@ const onRun = async (action: SheetAction) => {
               v-for="emoji in REACTION_EMOJIS"
               :key="emoji"
               type="button"
-              class="inline-flex h-8 w-8 items-center justify-center rounded-full text-base transition-transform hover:scale-115 hover:bg-gray-50"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full text-[22px] leading-none transition-transform hover:scale-115 hover:bg-gray-50"
               :class="myReactions.includes(emoji) && 'bg-chat-accent/10'"
               :aria-label="`Thả ${emoji}`"
               @click="onPickEmoji(emoji)"
@@ -247,7 +247,7 @@ const onRun = async (action: SheetAction) => {
             </button>
             <button
               type="button"
-              class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
+              class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
               title="Chọn biểu tượng khác"
               aria-label="Chọn biểu tượng khác"
               @click="showActionSheetEmojiPicker"
@@ -282,7 +282,7 @@ const onRun = async (action: SheetAction) => {
               v-for="emoji in REACTION_EMOJIS"
               :key="emoji"
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-full text-lg transition-transform active:scale-90"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full text-[26px] leading-none transition-transform active:scale-90"
               :class="myReactions.includes(emoji) && 'bg-chat-accent/10'"
               :aria-label="`Thả ${emoji}`"
               @click="onPickEmoji(emoji)"
@@ -291,7 +291,7 @@ const onRun = async (action: SheetAction) => {
             </button>
             <button
               type="button"
-              class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-transform active:scale-90"
+              class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-transform active:scale-90"
               aria-label="Chọn biểu tượng khác"
               @click="showActionSheetEmojiPicker"
             >

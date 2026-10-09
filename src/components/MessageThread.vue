@@ -24,6 +24,7 @@ const {
   titleOf,
   membersOf,
   sendMessage,
+  sendSticker,
   loadOlderMessages,
   notifyTyping,
   toggleMute,
@@ -214,6 +215,7 @@ const onLoadOlder = async () => {
       :autofocus="Boolean(draft)"
       :placeholder="`Nhắn tin cho ${headerTitle}`"
       @send="sendMessage"
+      @send-sticker="sendSticker"
       @typing="notifyTyping"
     />
   </div>

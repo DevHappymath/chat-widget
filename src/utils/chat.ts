@@ -3,6 +3,7 @@ import {
   type ChatConversation,
   type ChatMessage,
   type MessageReaction,
+  type MessageSummary,
 } from "../types/chat";
 import { formatDate, formatDateISO, formatRelativeTime, formatTime } from "./format";
 
@@ -142,8 +143,19 @@ export const avatarTone = (seed: string): string => {
 export const messagePreview = (message?: ChatMessage | null): string => {
   if (!message) return "Chưa có tin nhắn";
   if (message.isDeleted) return "Tin nhắn đã bị thu hồi";
+  if (message.type === MessageType.Sticker) return "Đã gửi nhãn dán";
   if (message.content?.trim()) return message.content;
   if (message.attachments.length) return `Đã gửi ${message.attachments.length} tệp`;
+  return "Tin nhắn";
+};
+
+/** Dòng trích dẫn của tin được trả lời; bản rút gọn không kèm tệp nên đoán theo kiểu tin. */
+export const summaryPreview = (summary: MessageSummary): string => {
+  if (summary.isDeleted) return "Tin nhắn đã bị thu hồi";
+  if (summary.type === MessageType.Sticker) return "Nhãn dán";
+  if (summary.content?.trim()) return summary.content;
+  if (summary.type === MessageType.Image) return "Hình ảnh";
+  if (summary.type === MessageType.File) return "Tệp đính kèm";
   return "Tin nhắn";
 };
 
@@ -164,6 +176,15 @@ export const normalizeName = (value: string): string =>
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/g, "d");
+
+/**
+ * Mọi từ trong ô tìm đều phải xuất hiện, không cần đúng thứ tự: gõ "tim do" vẫn ra "trái tim
+ * màu đỏ". `normalizedText` phải đã qua {@link normalizeName}.
+ */
+export const matchesAllWords = (normalizedText: string, query: string): boolean => {
+  const words = normalizeName(query).split(/\s+/).filter(Boolean);
+  return words.every((word) => normalizedText.includes(word));
+};
 
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, (char) => `\\${char}`);
