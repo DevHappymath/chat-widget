@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
 import type { ChatMessage, MessageAttachment } from "../types/chat";
@@ -222,8 +222,11 @@ const EDIT_MAX_HEIGHT_PX = 180;
 const fitEditBox = (el: HTMLTextAreaElement | null) => {
   if (!el) return;
 
-  el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, EDIT_MAX_HEIGHT_PX)}px`;
+  // Ref chạy trước khi v-model đổ nội dung vào ô, đo ngay thì chỉ được chiều cao ô rỗng.
+  nextTick(() => {
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, EDIT_MAX_HEIGHT_PX)}px`;
+  });
 };
 
 const onEditKeydown = (event: KeyboardEvent) => {
