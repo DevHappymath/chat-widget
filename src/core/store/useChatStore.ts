@@ -21,6 +21,7 @@ import {
   type ChatMessage,
   type ChatParticipant,
   type ConversationAttachment,
+  type ConversationCleared,
   type ConversationDissolved,
   type ConversationRead,
   type MessagePinChanged,
@@ -134,6 +135,8 @@ const bootError = ref<string | null>(null);
 
 const conversations = ref<ChatConversation[]>([]);
 const conversationsLoaded = ref(false);
+/** Hội thoại đang được tải về vì có tin đến mà chưa có trong danh sách, tránh tải trùng khi tin dồn dập. */
+const fetchingConversationIds = new Set<string>();
 const messagesByConversation = ref<Record<string, ChatMessage[]>>({});
 /** Hội thoại nào còn tin cũ hơn ở phía trên, để ẩn hay hiện nút tải thêm. */
 const hasMoreByConversation = ref<Record<string, boolean>>({});
@@ -597,6 +600,8 @@ export const useChatStore = () => {
         scheduleBadgeRefresh();
         alertIncoming(message);
       }
+      // Đoạn chat đã xoá ở phía mình nay có tin mới: danh sách đã nạp thì đưa nó trở lại.
+      if (conversationsLoaded.value) fetchMissingConversation(message.conversationId);
       return;
     }
 
@@ -1053,6 +1058,26 @@ export const useChatStore = () => {
   };
 
   /** Gỡ khỏi danh sách ngay, không chờ event ParticipantsChanged quay về. */
+  const fetchMissingConversation = async (conversationId: string) => {
+    if (fetchingConversationIds.has(conversationId)) return;
+
+    fetchingConversationIds.add(conversationId);
+    try {
+      const res = await conversationApi.getById(conversationId);
+      upsertConversation(res.data.data);
+    } catch {
+      // Không tải được thì lần nạp lại danh sách kế tiếp sẽ có.
+    } finally {
+      fetchingConversationIds.delete(conversationId);
+    }
+  };
+
+  /** Xoá đoạn chat 1-1 ở phía mình và gỡ khỏi danh sách ngay, không chờ event quay về. */
+  const clearConversation = async (conversationId: string) => {
+    await conversationApi.clear(conversationId);
+    removeConversation(conversationId);
+  };
+
   const leaveConversation = async (conversationId: string) => {
     await conversationApi.leave(conversationId);
     removeConversation(conversationId);
@@ -1521,6 +1546,10 @@ export const useChatStore = () => {
       applyConversationDissolved(payload),
     );
 
+    onHubEvent(HubEvent.ConversationCleared, (payload: ConversationCleared) =>
+      removeConversation(payload.conversationId),
+    );
+
     onHubEvent(HubEvent.ConversationRead, (payload: ConversationRead) => {
       const conversation = findConversation(payload.conversationId);
 
@@ -1829,6 +1858,7 @@ export const useChatStore = () => {
     updateParticipantRole,
     transferLeadership,
     leaveConversation,
+    clearConversation,
     dissolveConversation,
     createInviteLink,
     revokeInviteLink,

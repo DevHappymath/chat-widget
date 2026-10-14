@@ -36,6 +36,7 @@ const {
   updateParticipantRole,
   transferLeadership,
   leaveConversation,
+  clearConversation,
   dissolveConversation,
   backToList,
 } = useChatStore();
@@ -47,6 +48,7 @@ const isEditing = ref(false);
 const isSaving = ref(false);
 const isUploading = ref(false);
 const isLeaving = ref(false);
+const isClearing = ref(false);
 const isDissolving = ref(false);
 const openMenuUserId = ref<string | null>(null);
 const busyMemberId = ref<string | null>(null);
@@ -233,6 +235,30 @@ const onLeave = async () => {
     toast.error(extractErrorMessage(err));
   } finally {
     isLeaving.value = false;
+  }
+};
+
+const onClear = async () => {
+  const conversation = activeConversation.value;
+  if (!conversation) return;
+
+  const name = titleOf(conversation);
+  const agreed = await ask({
+    title: "Xoá đoạn chat",
+    message: `Xoá toàn bộ tin nhắn với ${name} ở phía bạn? ${name} vẫn xem được đoạn chat này. Khi có tin nhắn mới, đoạn chat sẽ hiện lại và chỉ có các tin từ lúc đó. Không thể hoàn tác.`,
+    confirmText: "Xoá đoạn chat",
+    danger: true,
+  });
+  if (!agreed) return;
+
+  isClearing.value = true;
+  try {
+    await clearConversation(conversation.id);
+    toast.success("Đã xoá đoạn chat");
+  } catch (err) {
+    toast.error(extractErrorMessage(err));
+  } finally {
+    isClearing.value = false;
   }
 };
 
@@ -553,6 +579,18 @@ onBeforeUnmount(() => {
           </span>
         </span>
         <WidgetIcon name="ChevronRight" :size="16" class="shrink-0 text-gray-400" />
+      </button>
+    </div>
+
+    <div v-if="!group" class="border-t border-gray-100 px-4 py-4">
+      <button
+        type="button"
+        class="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold text-red-600 ring-1 ring-red-200 transition-colors hover:bg-red-50 disabled:opacity-60"
+        :disabled="isClearing"
+        @click="onClear"
+      >
+        <WidgetIcon :name="isClearing ? 'Loader2' : 'Trash2'" :size="16" :class="isClearing && 'animate-spin'" />
+        {{ isClearing ? "Đang xoá..." : "Xoá đoạn chat" }}
       </button>
     </div>
 

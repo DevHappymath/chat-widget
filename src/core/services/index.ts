@@ -93,6 +93,9 @@ export const conversationApi = {
       `/conversations/${id}/members/${userId}/transfer-leader`,
     ),
 
+  /** Xoá đoạn chat 1-1 ở phía mình; người còn lại vẫn giữ nguyên lịch sử. */
+  clear: (id: string) => useHttp().delete<ApiEnvelope<null>>(`/conversations/${id}`),
+
   leave: (id: string) => useHttp().post<ApiEnvelope<null>>(`/conversations/${id}/leave`),
 
   /** Mọi thành viên cùng rời nhóm; chỉ trưởng nhóm gọi được. */

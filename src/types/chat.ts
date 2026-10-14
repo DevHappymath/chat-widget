@@ -255,6 +255,11 @@ export interface SetPresenceMessageCommand {
   expiresAtUtc?: string | null;
 }
 
+export interface ConversationCleared {
+  conversationId: string;
+  clearedSequence: number;
+}
+
 /** Payload của event hub UserAvatarChanged; `avatarUrl` null là vừa gỡ ảnh. */
 export interface UserAvatarChanged {
   userId: string;

@@ -14,6 +14,8 @@ export const HubEvent = {
   ParticipantsChanged: "ParticipantsChanged",
   ConversationDissolved: "ConversationDissolved",
   ConversationRead: "ConversationRead",
+  /** Chỉ gửi cho chính mình khi vừa xoá một đoạn chat 1-1 ở tab hay thiết bị khác. */
+  ConversationCleared: "ConversationCleared",
 
   MessageReceived: "MessageReceived",
   MessageUpdated: "MessageUpdated",
