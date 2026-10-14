@@ -430,6 +430,7 @@ onBeforeUnmount(() => {
         >
           <WidgetAvatar
             :name="displayNameOf(member)"
+            :src="member.avatarUrl"
             size="xs"
             :status="statusOf(member.userId)"
             show-presence

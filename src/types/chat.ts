@@ -64,6 +64,7 @@ export interface ChatParticipant {
   fullName?: string | null;
   email?: string | null;
   employeeCode?: string | null;
+  avatarUrl?: string | null;
   role: ParticipantRole;
   /** Ảnh chụp tại thời điểm server dựng response; realtime cập nhật qua PresenceChanged. */
   isOnline: boolean;
@@ -254,6 +255,12 @@ export interface SetPresenceMessageCommand {
   expiresAtUtc?: string | null;
 }
 
+/** Payload của event hub UserAvatarChanged; `avatarUrl` null là vừa gỡ ảnh. */
+export interface UserAvatarChanged {
+  userId: string;
+  avatarUrl: string | null;
+}
+
 export interface TypingSignal {
   conversationId: string;
   userId: string;
@@ -266,6 +273,7 @@ export interface AppUser {
   email?: string;
   fullName?: string;
   employeeCode?: string;
+  avatarUrl?: string | null;
   isLocked?: boolean;
 }
 
@@ -421,6 +429,9 @@ export interface ChatBootstrapUser {
   fullName?: string | null;
   email?: string | null;
   employeeCode?: string | null;
+  avatarUrl?: string | null;
+  /** Chỉ nhân sự nội bộ được tự đổi ảnh đại diện; server đời cũ không gửi trường này. */
+  canChangeAvatar?: boolean;
 }
 
 export interface ChatAttachmentRule {

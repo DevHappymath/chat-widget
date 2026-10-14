@@ -33,6 +33,7 @@ const {
   reactedByMe,
   openMessageActions,
   isPinned,
+  avatarOf,
 } = useChatStore();
 
 const imageViewer = useImageViewer();
@@ -251,6 +252,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
     <WidgetAvatar
       v-if="!cluster.isOwn"
       :name="cluster.senderName"
+      :src="avatarOf(cluster.senderId)"
       size="xs"
       class="mt-0.5"
     />

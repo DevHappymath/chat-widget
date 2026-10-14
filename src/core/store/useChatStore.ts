@@ -30,6 +30,7 @@ import {
   type MessageSummary,
   type Sticker,
   type TypingSignal,
+  type UserAvatarChanged,
   type UpdateGroupConversationCommand,
   type UploadedFile,
 } from "../../types/chat";
@@ -42,7 +43,7 @@ import {
 } from "../../utils/chat";
 import { extractErrorMessage } from "../../utils/error";
 import { onHubEvent, onHubReconnected, sendTyping, startHub } from "../hub";
-import { conversationApi, messageApi, widgetApi } from "../services";
+import { conversationApi, messageApi, userApi, widgetApi } from "../services";
 import { announceTabMessage } from "../tabAttention";
 import { useMessageAlerts } from "./useMessageAlerts";
 import { usePresence } from "./usePresence";
@@ -96,6 +97,7 @@ export interface DraftConversation {
   userId: string;
   fullName: string;
   email?: string | null;
+  avatarUrl?: string | null;
 }
 
 export type WidgetView =
@@ -142,6 +144,7 @@ const typingEntries = ref<TypingEntry[]>([]);
 
 const activeConversationId = ref<string | null>(null);
 const draft = ref<DraftConversation | null>(null);
+const isSavingAvatar = ref(false);
 const replyingTo = ref<ChatMessage | null>(null);
 const editingMessageId = ref<string | null>(null);
 const editingContent = ref("");
@@ -247,6 +250,65 @@ export const useChatStore = () => {
       : conversation.participants.find(
           (p) => p.userId.toLowerCase() !== currentUserId.value,
         );
+
+  /** Ảnh đại diện theo userId, gom từ thành viên mọi hội thoại đã nạp. */
+  const avatarByUserId = computed(() => {
+    const map: Record<string, string> = {};
+    for (const conversation of conversations.value) {
+      for (const participant of conversation.participants) {
+        if (participant.avatarUrl) map[participant.userId.toLowerCase()] = participant.avatarUrl;
+      }
+    }
+    return map;
+  });
+
+  const avatarOf = (userId?: string | null) =>
+    (userId && avatarByUserId.value[userId.toLowerCase()]) || null;
+
+  const myAvatarUrl = computed(() => bootstrap.value?.user?.avatarUrl ?? null);
+  const canChangeAvatar = computed(() => bootstrap.value?.user?.canChangeAvatar === true);
+
+  const applyAvatarChanged = (payload: UserAvatarChanged) => {
+    const userId = payload.userId.toLowerCase();
+
+    for (const conversation of conversations.value) {
+      const participant = conversation.participants.find((p) => p.userId.toLowerCase() === userId);
+      if (!participant) continue;
+
+      participant.avatarUrl = payload.avatarUrl;
+      // Hội thoại 1-1 lấy ảnh của người còn lại làm ảnh hội thoại.
+      if (!isGroup(conversation) && userId !== currentUserId.value) {
+        conversation.avatarUrl = payload.avatarUrl;
+      }
+    }
+
+    if (draft.value?.userId.toLowerCase() === userId) {
+      draft.value = { ...draft.value, avatarUrl: payload.avatarUrl };
+    }
+
+    const me = bootstrap.value?.user;
+    if (me && userId === currentUserId.value) {
+      bootstrap.value = { ...bootstrap.value!, user: { ...me, avatarUrl: payload.avatarUrl } };
+    }
+  };
+
+  /** Đổi hoặc gỡ ảnh của chính mình; hub cũng báo lại nhưng tab đang thao tác không phải chờ. */
+  const saveMyAvatar = async (file: File | null) => {
+    if (isSavingAvatar.value) return false;
+
+    isSavingAvatar.value = true;
+    try {
+      const res = file ? await userApi.updateMyAvatar(file) : await userApi.removeMyAvatar();
+      applyAvatarChanged({ userId: currentUserId.value, avatarUrl: res.data.data.avatarUrl ?? null });
+      toast.success(file ? "Đã đổi ảnh đại diện" : "Đã gỡ ảnh đại diện");
+      return true;
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+      return false;
+    } finally {
+      isSavingAvatar.value = false;
+    }
+  };
 
   const isOwnMessage = (message: ChatMessage) =>
     message.senderId.toLowerCase() === currentUserId.value;
@@ -1489,6 +1551,10 @@ export const useChatStore = () => {
       }
     });
 
+    onHubEvent(HubEvent.UserAvatarChanged, (payload: UserAvatarChanged) =>
+      applyAvatarChanged(payload),
+    );
+
     onHubEvent(HubEvent.UserTyping, (payload: TypingSignal) => {
       const userId = payload.userId.toLowerCase();
       const others = typingEntries.value.filter(
@@ -1638,6 +1704,12 @@ export const useChatStore = () => {
     currentUserId,
     currentUserName,
     attachmentRule,
+    // ảnh đại diện
+    avatarOf,
+    myAvatarUrl,
+    canChangeAvatar,
+    isSavingAvatar,
+    saveMyAvatar,
     // panel
     isPanelOpen,
     view,

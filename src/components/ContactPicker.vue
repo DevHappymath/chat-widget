@@ -11,6 +11,7 @@ const pick = (person: AppUser) =>
     userId: person.id,
     fullName: person.fullName || person.email || "Người dùng",
     email: person.email,
+    avatarUrl: person.avatarUrl,
   });
 </script>
 

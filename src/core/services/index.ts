@@ -248,4 +248,14 @@ export const presenceApi = {
 export const userApi = {
   getPaged: (params: PagedParams) =>
     useHttp().get<PagedResult<AppUser>>("/users", { params: toQuery(params, 30) }),
+
+  /** Gửi ảnh gốc, server tự cắt vuông và thu nhỏ. */
+  updateMyAvatar: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+
+    return useHttp().put<ApiEnvelope<AppUser>>("/users/me/avatar", form);
+  },
+
+  removeMyAvatar: () => useHttp().delete<ApiEnvelope<AppUser>>("/users/me/avatar"),
 };

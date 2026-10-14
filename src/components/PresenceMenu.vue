@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
+import { IMAGE_ACCEPT } from "../constants/attachment";
 import {
   formatUntil,
   MESSAGE_DURATIONS,
@@ -23,8 +24,42 @@ import WidgetIcon from "./WidgetIcon.vue";
  */
 const emit = defineEmits<{ close: []; choose: [status: PresenceStatus] }>();
 
-const { currentUserName, myPresence, setPresenceStatus, setPresenceMessage } = useChatStore();
+const {
+  currentUserName,
+  myPresence,
+  setPresenceStatus,
+  setPresenceMessage,
+  myAvatarUrl,
+  canChangeAvatar,
+  isSavingAvatar,
+  saveMyAvatar,
+} = useChatStore();
 const toast = useWidgetToast();
+
+// ─── Ảnh đại diện ─────────────────────────────────────────────────────────────
+
+/** Bản sao của `AvatarRule` bên server: chặn sớm cho đỡ phải chờ tải lên rồi mới báo lỗi. */
+const MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024;
+
+const avatarInput = ref<HTMLInputElement | null>(null);
+
+const onAvatarPicked = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+
+  if (file.size > MAX_AVATAR_SIZE_BYTES) {
+    toast.error("Ảnh vượt quá 5 MB");
+    return;
+  }
+
+  if (await saveMyAvatar(file)) emit("close");
+};
+
+const removeAvatar = async () => {
+  if (await saveMyAvatar(null)) emit("close");
+};
 
 const MESSAGE_MAX_LENGTH = 140;
 
@@ -104,7 +139,13 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
     aria-label="Trạng thái của bạn"
   >
     <div class="flex items-center gap-2.5 border-b border-gray-100 px-3 py-3">
-      <WidgetAvatar :name="currentUserName" :status="current" show-presence size="sm" />
+      <WidgetAvatar
+        :name="currentUserName"
+        :src="myAvatarUrl"
+        :status="current"
+        show-presence
+        size="sm"
+      />
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-semibold text-gray-900">{{ currentUserName }}</p>
         <p class="truncate text-xs text-gray-700">
@@ -218,6 +259,39 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
       >
         <WidgetIcon name="MessageSquarePlus" :size="15" />
         Đặt lời nhắn trạng thái
+      </button>
+    </div>
+
+    <div v-if="canChangeAvatar" class="border-t border-gray-100 py-1">
+      <input
+        ref="avatarInput"
+        type="file"
+        :accept="IMAGE_ACCEPT"
+        class="hidden"
+        @change="onAvatarPicked"
+      />
+      <button
+        type="button"
+        class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-60"
+        :disabled="isSavingAvatar"
+        @click="avatarInput?.click()"
+      >
+        <WidgetIcon
+          :name="isSavingAvatar ? 'Loader2' : 'Camera'"
+          :size="15"
+          :class="isSavingAvatar && 'animate-spin'"
+        />
+        {{ myAvatarUrl ? "Đổi ảnh đại diện" : "Đặt ảnh đại diện" }}
+      </button>
+      <button
+        v-if="myAvatarUrl"
+        type="button"
+        class="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-60"
+        :disabled="isSavingAvatar"
+        @click="removeAvatar"
+      >
+        <WidgetIcon name="ImageOff" :size="15" />
+        Gỡ ảnh đại diện
       </button>
     </div>
   </div>

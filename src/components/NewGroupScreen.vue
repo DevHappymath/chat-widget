@@ -91,7 +91,7 @@ const submit = async () => {
           :key="person.id"
           class="flex items-center gap-1.5 rounded-full bg-chat-accent/10 py-0.5 pl-0.5 pr-1.5"
         >
-          <WidgetAvatar :name="displayNameOf(person)" size="xs" />
+          <WidgetAvatar :name="displayNameOf(person)" :src="person.avatarUrl" size="xs" />
           <span class="max-w-24 truncate text-[11px] font-semibold text-chat-accent-strong">
             {{ displayNameOf(person) }}
           </span>

@@ -125,6 +125,7 @@ onMounted(load);
           >
             <WidgetAvatar
               :name="displayNameOf(person)"
+              :src="person.avatarUrl"
               size="sm"
               :status="statusOf(person.id)"
               show-presence

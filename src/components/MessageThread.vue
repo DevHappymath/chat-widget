@@ -120,7 +120,7 @@ const onLoadOlder = async () => {
       <WidgetAvatar
         :name="headerTitle"
         :variant="group ? 'group' : 'user'"
-        :src="activeConversation?.avatarUrl"
+        :src="activeConversation?.avatarUrl ?? draft?.avatarUrl"
         :status="statusOf(headerPartnerId)"
         :show-presence="!group"
         size="sm"
@@ -195,7 +195,7 @@ const onLoadOlder = async () => {
         <WidgetAvatar
           :name="headerTitle"
           :variant="group ? 'group' : 'user'"
-          :src="activeConversation?.avatarUrl"
+          :src="activeConversation?.avatarUrl ?? draft?.avatarUrl"
           size="lg"
         />
         <p class="mt-1 text-sm font-semibold text-gray-800">{{ headerTitle }}</p>

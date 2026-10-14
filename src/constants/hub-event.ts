@@ -6,6 +6,8 @@ export const HubEvent = {
   PresenceChanged: "PresenceChanged",
   /** Chỉ gửi cho chính mình khi trạng thái tự đặt đổi ở tab hay thiết bị khác. */
   PresenceSettingsChanged: "PresenceSettingsChanged",
+  /** Ảnh đại diện của một người có chung hội thoại (hoặc chính mình) vừa đổi. */
+  UserAvatarChanged: "UserAvatarChanged",
 
   ConversationCreated: "ConversationCreated",
   ConversationUpdated: "ConversationUpdated",
