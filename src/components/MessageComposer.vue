@@ -52,8 +52,9 @@ const mentionIndex = ref(0);
 const acceptAttribute = computed(() => attachmentRule.value.allowedExtensions.join(","));
 
 /**
- * Textarea không tô màu được một phần chữ, nên phần @tên hiển thị ở lớp nền phía sau còn chữ
- * trong textarea để trong suốt. Hai lớp phải cùng font, padding và chiều rộng mới trùng khít.
+ * Textarea không tô màu được một phần chữ, nên nền của phần @tên vẽ ở lớp phía sau với chữ trong
+ * suốt; chữ thật vẫn hiện trong textarea để bộ gõ đang ghép chữ (điện thoại, tiếng Việt) không làm
+ * chữ biến mất. Hai lớp phải cùng font, padding và chiều rộng mới trùng khít.
  */
 const bodySegments = computed(() =>
   splitMentions(
@@ -100,8 +101,28 @@ const refreshMentionQuery = () => {
   }
 
   const match = body.value.slice(0, el.selectionStart).match(/@([^\s@]*)$/);
-  mentionQuery.value = match ? match[1]! : null;
-  mentionIndex.value = 0;
+  const query = match ? match[1]! : null;
+
+  // Chỉ về dòng đầu khi từ khoá đổi; giữ nguyên dòng đang chọn khi gõ lại đúng từ khoá cũ.
+  if (query !== mentionQuery.value) mentionIndex.value = 0;
+  mentionQuery.value = query;
+};
+
+/** Phím đã xử lý ở keydown; keyup của chúng mà dò lại từ khoá thì mũi tên vừa chọn bị kéo về đầu, Esc thì mở lại danh sách. */
+const MENTION_KEYS = new Set(["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"]);
+
+/**
+ * Không dùng v-model: v-model bỏ qua lúc bộ gõ đang ghép chữ (bàn phím điện thoại, gõ tiếng Việt),
+ * mà chữ thật trong ô để trong suốt, nên từ đang gõ sẽ vô hình tới khi ghép xong.
+ */
+const onInput = (event: Event) => {
+  body.value = (event.target as HTMLTextAreaElement).value;
+  refreshMentionQuery();
+};
+
+const onKeyup = (event: KeyboardEvent) => {
+  if (MENTION_KEYS.has(event.key)) return;
+  refreshMentionQuery();
 };
 
 const pickMention = (participant: ChatParticipant) => {
@@ -266,6 +287,9 @@ const submit = () => {
 };
 
 const onKeydown = (event: KeyboardEvent) => {
+  // Enter lúc đang ghép chữ là để chốt chữ, không phải để gửi.
+  if (event.isComposing) return;
+
   if (mentionCandidates.value.length) {
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -388,25 +412,26 @@ defineExpose({ focus });
           <div
             ref="mirror"
             aria-hidden="true"
-            class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap py-1.5 text-sm leading-6 text-gray-900 wrap-break-word"
+            class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap py-1.5 text-base leading-6 text-transparent wrap-break-word sm:text-sm"
           >
             <span
               v-for="(segment, index) in bodySegments"
               :key="index"
-              :class="segment.isMention && 'bg-chat-accent/10 text-chat-accent-strong'"
+              :class="segment.isMention && 'rounded-sm bg-chat-accent/15'"
               >{{ segment.text }}</span
             ><span>&#8203;</span>
           </div>
 
           <textarea
             ref="textarea"
-            v-model="body"
+            :value="body"
             rows="1"
             :placeholder="placeholder"
-            class="gdtd-chat-no-scrollbar relative block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-sm leading-6 text-transparent caret-gray-900 outline-none placeholder:text-gray-500"
+            class="gdtd-chat-no-scrollbar relative block w-full resize-none border-0 bg-transparent px-0 py-1.5 text-base leading-6 text-gray-900 outline-none sm:text-sm placeholder:text-gray-500"
             @keydown="onKeydown"
             @paste="onPaste"
-            @keyup="refreshMentionQuery"
+            @input="onInput"
+            @keyup="onKeyup"
             @click="refreshMentionQuery"
             @scroll="syncMirrorScroll"
           />
