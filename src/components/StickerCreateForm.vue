@@ -13,7 +13,7 @@ const { create, isCreating } = useStickers();
 const toast = useWidgetToast();
 
 // Phải khớp StickerRule bên server.
-const MAX_SIZE_BYTES = 2 * 1024 * 1024;
+const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const NAME_MAX_LENGTH = 50;
 const ACCEPT =
   ".png,.jpg,.jpeg,.webp,.gif,.webm,.mp4,image/png,image/jpeg,image/webp,image/gif,video/webm,video/mp4";
@@ -53,7 +53,7 @@ const onFileChange = (event: Event) => {
     return;
   }
   if (picked.size > MAX_SIZE_BYTES) {
-    error.value = "Tệp lớn hơn 2MB, hãy chọn tệp nhẹ hơn";
+    error.value = "Tệp lớn hơn 5MB, hãy chọn tệp nhẹ hơn";
     return;
   }
 
@@ -148,7 +148,7 @@ const submit = async () => {
 
     <p v-if="error" class="text-[11px] text-red-600">{{ error }}</p>
     <p v-else class="text-[10px] leading-snug text-gray-500">
-      PNG, JPG, WEBP, GIF, WEBM hoặc MP4, tối đa 2MB. Nhãn dán sẽ hiện cho mọi người, kể cả học sinh.
+      PNG, JPG, WEBP, GIF, WEBM hoặc MP4, tối đa 5MB. Nhãn dán sẽ hiện cho mọi người, kể cả học sinh.
     </p>
 
     <div class="mt-auto flex items-center justify-end gap-2">
