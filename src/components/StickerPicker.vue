@@ -40,6 +40,12 @@ const recentIds = ref<string[]>(readRecent());
 
 const allStickers = computed(() => packs.value.flatMap((pack) => pack.stickers));
 
+// Gói mọi người tạo đứng đầu, các gói nạp sẵn giữ thứ tự server trả về.
+const orderedPacks = computed(() => [
+  ...packs.value.filter((pack) => pack.isUserMade),
+  ...packs.value.filter((pack) => !pack.isUserMade),
+]);
+
 // Nhãn dán đã bị tắt thì tự rơi khỏi "gần đây" vì không còn trong danh mục.
 const recent = computed(() =>
   recentIds.value
@@ -178,7 +184,7 @@ const CELL_CLASS =
             </div>
           </section>
 
-          <section v-for="pack in packs" :key="pack.id">
+          <section v-for="pack in orderedPacks" :key="pack.id">
             <h3 class="px-1 pb-1 pt-2 text-[11px] font-semibold text-gray-500">{{ pack.name }}</h3>
             <div class="grid grid-cols-4 gap-1">
               <button
