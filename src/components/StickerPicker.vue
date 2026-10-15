@@ -1,16 +1,28 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useChatStore } from "../core/store/useChatStore";
 import { useStickers } from "../core/store/useStickers";
 import type { Sticker } from "../types/chat";
 import { matchesAllWords, normalizeName } from "../utils/chat";
+import StickerCreateForm from "./StickerCreateForm.vue";
+import StickerMedia from "./StickerMedia.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 /** Bảng chọn nhãn dán của ô soạn tin. Chọn là gửi luôn, nơi gọi tự đóng bảng. */
 const emit = defineEmits<{ pick: [sticker: Sticker] }>();
 
 const { packs, isLoading, loadError, load } = useStickers();
+const { canCreateSticker } = useChatStore();
 
-onMounted(load);
+onMounted(() => load());
+
+const isCreating = ref(false);
+
+// Tạo xong quay về danh sách, nhãn dán mới đứng đầu gói tự tạo để bấm gửi ngay.
+const onCreated = () => {
+  isCreating.value = false;
+  query.value = "";
+};
 
 const RECENT_KEY = "gdtd-chat.recentStickers";
 const RECENT_LIMIT = 8;
@@ -66,78 +78,73 @@ const CELL_CLASS =
 
 <template>
   <div class="flex h-80 w-full flex-col overflow-hidden bg-white">
-    <div class="shrink-0 px-2 pt-2 pb-1">
-      <label
-        class="flex h-8 items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 text-gray-500 ring-1 ring-transparent transition-colors focus-within:bg-white focus-within:ring-chat-accent/50"
-      >
-        <WidgetIcon name="Search" :size="14" />
-        <input
-          v-model="query"
-          type="text"
-          placeholder="Tìm nhãn dán"
-          aria-label="Tìm nhãn dán"
-          class="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0"
-          @keydown.esc.stop="query = ''"
-        />
+    <template v-if="isCreating">
+      <div class="flex shrink-0 items-center gap-1 px-1.5 pt-1.5 pb-1">
         <button
-          v-if="isSearching"
           type="button"
-          class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
-          aria-label="Xoá từ khoá"
-          @click="query = ''"
+          class="inline-flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
+          aria-label="Quay lại bảng nhãn dán"
+          @click="isCreating = false"
         >
-          <WidgetIcon name="X" :size="12" />
+          <WidgetIcon name="ArrowLeft" :size="16" />
         </button>
-      </label>
-    </div>
+        <h3 class="text-xs font-semibold text-gray-800">Tạo nhãn dán</h3>
+      </div>
+      <StickerCreateForm @done="onCreated" @cancel="isCreating = false" />
+    </template>
 
-    <div
-      v-if="!packs.length && isLoading"
-      class="flex flex-1 items-center justify-center text-chat-accent-strong"
-    >
-      <WidgetIcon name="Loader2" :size="20" class="animate-spin" />
-    </div>
-
-    <div
-      v-else-if="!packs.length && loadError"
-      class="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
-    >
-      <p class="text-xs text-gray-600">Chưa tải được nhãn dán. {{ loadError }}</p>
-      <button
-        type="button"
-        class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
-        @click="load"
-      >
-        Thử lại
-      </button>
-    </div>
-
-    <div v-else class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
-      <template v-if="isSearching">
-        <div v-if="results.length" class="grid grid-cols-4 gap-1 pt-1">
+    <template v-else>
+      <div class="shrink-0 px-2 pt-2 pb-1">
+        <label
+          class="flex h-8 items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 text-gray-500 ring-1 ring-transparent transition-colors focus-within:bg-white focus-within:ring-chat-accent/50"
+        >
+          <WidgetIcon name="Search" :size="14" />
+          <input
+            v-model="query"
+            type="text"
+            placeholder="Tìm nhãn dán"
+            aria-label="Tìm nhãn dán"
+            class="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0"
+            @keydown.esc.stop="query = ''"
+          />
           <button
-            v-for="sticker in results"
-            :key="sticker.id"
+            v-if="isSearching"
             type="button"
-            :class="CELL_CLASS"
-            :title="sticker.name"
-            :aria-label="`Gửi nhãn dán ${sticker.name}`"
-            @click="pick(sticker)"
+            class="inline-flex h-5 w-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-800"
+            aria-label="Xoá từ khoá"
+            @click="query = ''"
           >
-            <img :src="sticker.url" :alt="sticker.name" loading="lazy" class="h-full w-full" />
+            <WidgetIcon name="X" :size="12" />
           </button>
-        </div>
-        <p v-else class="px-2 py-10 text-center text-xs text-gray-500">
-          Không tìm thấy nhãn dán nào
-        </p>
-      </template>
+        </label>
+      </div>
 
-      <template v-else>
-        <section v-if="recent.length">
-          <h3 class="px-1 pb-1 pt-1 text-[11px] font-semibold text-gray-500">Dùng gần đây</h3>
-          <div class="grid grid-cols-4 gap-1">
+      <div
+        v-if="!packs.length && isLoading"
+        class="flex flex-1 items-center justify-center text-chat-accent-strong"
+      >
+        <WidgetIcon name="Loader2" :size="20" class="animate-spin" />
+      </div>
+
+      <div
+        v-else-if="!packs.length && loadError"
+        class="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+      >
+        <p class="text-xs text-gray-600">Chưa tải được nhãn dán. {{ loadError }}</p>
+        <button
+          type="button"
+          class="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+          @click="load(true)"
+        >
+          Thử lại
+        </button>
+      </div>
+
+      <div v-else class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+        <template v-if="isSearching">
+          <div v-if="results.length" class="grid grid-cols-4 gap-1 pt-1">
             <button
-              v-for="sticker in recent"
+              v-for="sticker in results"
               :key="sticker.id"
               type="button"
               :class="CELL_CLASS"
@@ -145,41 +152,80 @@ const CELL_CLASS =
               :aria-label="`Gửi nhãn dán ${sticker.name}`"
               @click="pick(sticker)"
             >
-              <img :src="sticker.url" :alt="sticker.name" loading="lazy" class="h-full w-full" />
+              <StickerMedia :sticker="sticker" class="h-full w-full" />
             </button>
           </div>
-        </section>
-
-        <section v-for="pack in packs" :key="pack.id">
-          <h3 class="px-1 pb-1 pt-2 text-[11px] font-semibold text-gray-500">{{ pack.name }}</h3>
-          <div class="grid grid-cols-4 gap-1">
-            <button
-              v-for="sticker in pack.stickers"
-              :key="sticker.id"
-              type="button"
-              :class="CELL_CLASS"
-              :title="sticker.name"
-              :aria-label="`Gửi nhãn dán ${sticker.name}`"
-              @click="pick(sticker)"
-            >
-              <img :src="sticker.url" :alt="sticker.name" loading="lazy" class="h-full w-full" />
-            </button>
-          </div>
-
-          <!-- Giấy phép của gói bắt buộc ghi nguồn ở nơi người dùng nhìn thấy. -->
-          <p v-if="pack.attribution" class="px-1 pt-2 text-[10px] text-gray-500">
-            <a
-              v-if="pack.attributionUrl"
-              :href="pack.attributionUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="underline decoration-gray-300 underline-offset-2 hover:text-gray-700"
-              >{{ pack.attribution }}</a
-            >
-            <template v-else>{{ pack.attribution }}</template>
+          <p v-else class="px-2 py-10 text-center text-xs text-gray-500">
+            Không tìm thấy nhãn dán nào
           </p>
-        </section>
-      </template>
-    </div>
+        </template>
+
+        <template v-else>
+          <section v-if="recent.length">
+            <h3 class="px-1 pb-1 pt-1 text-[11px] font-semibold text-gray-500">Dùng gần đây</h3>
+            <div class="grid grid-cols-4 gap-1">
+              <button
+                v-for="sticker in recent"
+                :key="sticker.id"
+                type="button"
+                :class="CELL_CLASS"
+                :title="sticker.name"
+                :aria-label="`Gửi nhãn dán ${sticker.name}`"
+                @click="pick(sticker)"
+              >
+                <StickerMedia :sticker="sticker" class="h-full w-full" />
+              </button>
+            </div>
+          </section>
+
+          <section v-for="pack in packs" :key="pack.id">
+            <h3 class="px-1 pb-1 pt-2 text-[11px] font-semibold text-gray-500">{{ pack.name }}</h3>
+            <div class="grid grid-cols-4 gap-1">
+              <button
+                v-if="pack.isUserMade && canCreateSticker"
+                type="button"
+                class="inline-flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-gray-300 text-gray-500 transition-colors hover:border-chat-accent/60 hover:bg-chat-accent/5 hover:text-chat-accent-strong"
+                aria-label="Tạo nhãn dán mới"
+                @click="isCreating = true"
+              >
+                <WidgetIcon name="Plus" :size="18" />
+                <span class="text-[10px] font-medium">Tạo mới</span>
+              </button>
+              <button
+                v-for="sticker in pack.stickers"
+                :key="sticker.id"
+                type="button"
+                :class="CELL_CLASS"
+                :title="sticker.name"
+                :aria-label="`Gửi nhãn dán ${sticker.name}`"
+                @click="pick(sticker)"
+              >
+                <StickerMedia :sticker="sticker" class="h-full w-full" />
+              </button>
+            </div>
+
+            <p
+              v-if="pack.isUserMade && !pack.stickers.length && !canCreateSticker"
+              class="px-1 pb-1 text-[11px] text-gray-500"
+            >
+              Chưa có ai tạo nhãn dán
+            </p>
+
+            <!-- Giấy phép của gói bắt buộc ghi nguồn ở nơi người dùng nhìn thấy. -->
+            <p v-if="pack.attribution" class="px-1 pt-2 text-[10px] text-gray-500">
+              <a
+                v-if="pack.attributionUrl"
+                :href="pack.attributionUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="underline decoration-gray-300 underline-offset-2 hover:text-gray-700"
+                >{{ pack.attribution }}</a
+              >
+              <template v-else>{{ pack.attribution }}</template>
+            </p>
+          </section>
+        </template>
+      </div>
+    </template>
   </div>
 </template>

@@ -28,6 +28,7 @@ export type {
   MyPresence,
   Sticker,
   StickerPack,
+  CreateStickerCommand,
   UploadedFile,
   UserPresence,
 } from "./types/chat";

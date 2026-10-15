@@ -27,6 +27,8 @@ import type {
   SetPresenceStatusCommand,
   SetMessageReactionCommand,
   StickerPack,
+  Sticker,
+  CreateStickerCommand,
   UpdateConversationSettingsCommand,
   UpdateGroupConversationCommand,
   UpdateMessageCommand,
@@ -233,8 +235,18 @@ export const fileApi = {
 };
 
 export const stickerApi = {
-  /** Danh sách ít đổi, widget chỉ tải một lần cho cả phiên. */
+  /** Danh mục ít đổi, tải lại theo nhịp của `useStickers` chứ không mỗi lần mở bảng chọn. */
   getPacks: () => useHttp().get<ApiEnvelope<StickerPack[]>>("/stickers"),
+
+  create: (command: CreateStickerCommand) => {
+    const form = new FormData();
+    form.append("file", command.file);
+    form.append("name", command.name);
+    if (command.width) form.append("width", String(command.width));
+    if (command.height) form.append("height", String(command.height));
+
+    return useHttp().post<ApiEnvelope<Sticker>>("/stickers", form);
+  },
 };
 
 /** `api/presence/me` - trạng thái và lời nhắn của chính người đang đăng nhập. */

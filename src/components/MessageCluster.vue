@@ -2,10 +2,11 @@
 import { computed, nextTick, ref } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
-import type { ChatMessage, MessageAttachment } from "../types/chat";
+import { MessageType, type ChatMessage, type MessageAttachment } from "../types/chat";
 import type { MessageCluster } from "../utils/chat";
 import { countEmojiOnly, linkifySegments, splitMentions, summaryPreview } from "../utils/chat";
 import { formatBytes, formatDateISO, formatDateTime, formatTime } from "../utils/format";
+import StickerMedia from "./StickerMedia.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -430,17 +431,21 @@ const onEditKeydown = (event: KeyboardEvent) => {
                   {{ forwardedFromLabel(message) }}
                 </p>
 
-                <img
+                <StickerMedia
                   v-if="message.sticker"
-                  :src="message.sticker.url"
+                  :sticker="message.sticker"
                   :alt="`Nhãn dán ${message.sticker.name}`"
                   :title="message.sticker.name"
                   width="120"
                   height="120"
-                  loading="lazy"
-                  draggable="false"
                   class="size-30"
                 />
+                <p
+                  v-else-if="message.type === MessageType.Sticker"
+                  class="flex size-30 items-center justify-center rounded-2xl border border-dashed border-gray-200 px-3 text-center text-xs text-gray-500 italic"
+                >
+                  Nhãn dán đã bị gỡ
+                </p>
 
                 <p
                   v-if="emojiOnlyCount(message)"

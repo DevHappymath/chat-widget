@@ -89,8 +89,21 @@ export interface Sticker {
   /** Tên tiếng Việt, dùng để tìm kiếm và đọc cho trình đọc màn hình. */
   name: string;
   url: string;
+  /**
+   * Bắt đầu bằng "video/" (webm, mp4) thì phát bằng thẻ video; còn lại là ảnh, kể cả GIF, WebP động.
+   * Server đời cũ không gửi trường này.
+   */
+  contentType?: string;
   width: number;
   height: number;
+}
+
+/** Video thì gửi kèm kích thước trình duyệt đo được; ảnh thì server tự đọc. */
+export interface CreateStickerCommand {
+  file: File;
+  name: string;
+  width?: number;
+  height?: number;
 }
 
 /** Kết quả `GET /api/stickers`, chỉ gồm gói và nhãn dán đang bật. */
@@ -100,6 +113,8 @@ export interface StickerPack {
   /** Có giá trị thì bắt buộc hiện trong bảng chọn - giấy phép của gói yêu cầu ghi nguồn. */
   attribution?: string | null;
   attributionUrl?: string | null;
+  /** Gói chứa nhãn dán người dùng tự tạo; nút "Tạo nhãn dán" nằm ở đây. */
+  isUserMade?: boolean;
   stickers: Sticker[];
 }
 
@@ -437,6 +452,8 @@ export interface ChatBootstrapUser {
   avatarUrl?: string | null;
   /** Chỉ nhân sự nội bộ được tự đổi ảnh đại diện; server đời cũ không gửi trường này. */
   canChangeAvatar?: boolean;
+  /** Chỉ nhân sự nội bộ được tạo nhãn dán; server đời cũ không gửi trường này. */
+  canCreateSticker?: boolean;
 }
 
 export interface ChatAttachmentRule {

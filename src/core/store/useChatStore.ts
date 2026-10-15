@@ -48,6 +48,7 @@ import { conversationApi, messageApi, userApi, widgetApi } from "../services";
 import { announceTabMessage } from "../tabAttention";
 import { useMessageAlerts } from "./useMessageAlerts";
 import { usePresence } from "./usePresence";
+import { useStickers } from "./useStickers";
 import { useWidgetToast } from "./useWidgetToast";
 
 export type ConversationFilter = "all" | "unread" | "group";
@@ -270,6 +271,7 @@ export const useChatStore = () => {
 
   const myAvatarUrl = computed(() => bootstrap.value?.user?.avatarUrl ?? null);
   const canChangeAvatar = computed(() => bootstrap.value?.user?.canChangeAvatar === true);
+  const canCreateSticker = computed(() => bootstrap.value?.user?.canCreateSticker === true);
 
   const applyAvatarChanged = (payload: UserAvatarChanged) => {
     const userId = payload.userId.toLowerCase();
@@ -966,6 +968,8 @@ export const useChatStore = () => {
         (id) => id !== clientMessageId,
       );
       failedClientIds.value = [...failedClientIds.value, clientMessageId];
+      // Hay gặp nhất là nhãn dán vừa bị gỡ: lần mở bảng chọn sau phải thấy danh mục mới.
+      if (sticker) useStickers().invalidate();
       toast.error(extractErrorMessage(err));
     }
   };
@@ -1737,6 +1741,7 @@ export const useChatStore = () => {
     avatarOf,
     myAvatarUrl,
     canChangeAvatar,
+    canCreateSticker,
     isSavingAvatar,
     saveMyAvatar,
     // panel
