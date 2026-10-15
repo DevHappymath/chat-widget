@@ -188,6 +188,17 @@ export const matchesAllWords = (normalizedText: string, query: string): boolean 
   return words.every((word) => normalizedText.includes(word));
 };
 
+/** Chữ chèn vào tin khi nhắc cả nhóm; đổi chữ này thì tin cũ không còn được tô sáng. */
+export const EVERYONE_MENTION = "Mọi người";
+
+const EVERYONE_ALIASES = ["moinguoi", "all", "everyone", "tatca", "canhom"];
+
+/** Gõ "@moi", "@all" hay "@tatca" đều ra dòng nhắc cả nhóm; `query` phải đã qua {@link normalizeName}. */
+export const matchesEveryoneMention = (query: string): boolean => {
+  const compact = query.replace(/\s+/g, "");
+  return EVERYONE_ALIASES.some((alias) => alias.includes(compact));
+};
+
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, (char) => `\\${char}`);
 

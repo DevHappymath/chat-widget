@@ -4,7 +4,13 @@ import { useChatStore } from "../core/store/useChatStore";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
 import { MessageType, type ChatMessage, type MessageAttachment } from "../types/chat";
 import type { MessageCluster } from "../utils/chat";
-import { countEmojiOnly, linkifySegments, splitMentions, summaryPreview } from "../utils/chat";
+import {
+  countEmojiOnly,
+  EVERYONE_MENTION,
+  linkifySegments,
+  splitMentions,
+  summaryPreview,
+} from "../utils/chat";
 import { formatBytes, formatDateISO, formatDateTime, formatTime } from "../utils/format";
 import StickerMedia from "./StickerMedia.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
@@ -131,7 +137,12 @@ const openImage = (file: MessageAttachment) =>
 
 /** Backend chỉ lưu userId của người được nhắc, tên phải tra ngược từ danh sách thành viên. */
 const contentSegments = (message: ChatMessage) =>
-  linkifySegments(splitMentions(message.content ?? "", message.mentionedUserIds.map(nameOfUser)));
+  linkifySegments(
+    splitMentions(message.content ?? "", [
+      ...message.mentionedUserIds.map(nameOfUser),
+      ...(message.mentionsEveryone ? [EVERYONE_MENTION] : []),
+    ]),
+  );
 
 const reactionTooltip = (userIds: string[]) => userIds.map(nameOfUser).join(", ");
 

@@ -171,6 +171,8 @@ export interface ChatMessage {
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
   mentionedUserIds: string[];
+  /** Tin có nhắc "@Mọi người"; `mentionedUserIds` khi đó chỉ gồm người được nhắc riêng. */
+  mentionsEveryone?: boolean;
   /** Có giá trị khi đây là tin chuyển tiếp: id người gửi tin gốc. */
   forwardedFromUserId?: string | null;
   pinnedAtUtc?: string | null;
@@ -354,6 +356,8 @@ export interface SendMessageCommand {
   attachments: MessageAttachmentCommand[];
   /** Người được nhắc tên; phải là thành viên còn hoạt động của hội thoại. */
   mentionedUserIds: string[];
+  /** Nhắc "@Mọi người": báo cho mọi thành viên còn trong nhóm; chỉ dùng được ở nhóm. */
+  mentionEveryone?: boolean;
 }
 
 export interface SetMessageReactionCommand {

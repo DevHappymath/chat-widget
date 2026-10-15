@@ -870,25 +870,28 @@ export const useChatStore = () => {
     content: string,
     attachments: UploadedFile[] = [],
     mentionedUserIds: string[] = [],
+    mentionEveryone = false,
   ) => {
     const body = content.trim();
     if (!body && !attachments.length) return Promise.resolve();
 
-    return postMessage({ body, attachments, mentionedUserIds, sticker: null });
+    return postMessage({ body, attachments, mentionedUserIds, mentionEveryone, sticker: null });
   };
 
   const sendSticker = (sticker: Sticker) =>
-    postMessage({ body: "", attachments: [], mentionedUserIds: [], sticker });
+    postMessage({ body: "", attachments: [], mentionedUserIds: [], mentionEveryone: false, sticker });
 
   const postMessage = async ({
     body,
     attachments,
     mentionedUserIds,
+    mentionEveryone,
     sticker,
   }: {
     body: string;
     attachments: UploadedFile[];
     mentionedUserIds: string[];
+    mentionEveryone: boolean;
     sticker: Sticker | null;
   }) => {
     let conversation = activeConversation.value;
@@ -934,6 +937,7 @@ export const useChatStore = () => {
       })),
       reactions: [],
       mentionedUserIds,
+      mentionsEveryone: mentionEveryone,
       isDeleted: false,
       createdAtUtc: new Date().toISOString(),
     };
@@ -961,6 +965,7 @@ export const useChatStore = () => {
           fileName: file.fileName,
         })),
         mentionedUserIds,
+        mentionEveryone,
       });
       applyIncomingMessage(res.data.data);
     } catch (err) {

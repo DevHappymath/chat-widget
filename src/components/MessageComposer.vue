@@ -5,7 +5,14 @@ import { fileApi } from "../core/services";
 import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import type { ChatParticipant, Sticker, UploadedFile } from "../types/chat";
-import { messagePreview, normalizeName, pastedImageFiles, splitMentions } from "../utils/chat";
+import {
+  EVERYONE_MENTION,
+  matchesEveryoneMention,
+  messagePreview,
+  normalizeName,
+  pastedImageFiles,
+  splitMentions,
+} from "../utils/chat";
 import { extractErrorMessage } from "../utils/error";
 import { formatBytes } from "../utils/format";
 import EmojiPicker from "./EmojiPicker.vue";
@@ -19,7 +26,12 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  send: [content: string, attachments: UploadedFile[], mentionedUserIds: string[]];
+  send: [
+    content: string,
+    attachments: UploadedFile[],
+    mentionedUserIds: string[],
+    mentionEveryone: boolean,
+  ];
   sendSticker: [sticker: Sticker];
   typing: [];
 }>();
@@ -44,8 +56,16 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const attachments = ref<UploadedFile[]>([]);
 const uploadingCount = ref(0);
 
+/** Một dòng trong danh sách nhắc tên; `userId` null là dòng nhắc cả nhóm. */
+interface MentionOption {
+  userId: string | null;
+  name: string;
+  detail: string;
+  avatarUrl?: string | null;
+}
+
 /** Tên đã chèn vào ô nhập, giữ để quy ngược ra userId lúc gửi. */
-const mentions = ref<{ userId: string; name: string }[]>([]);
+const mentions = ref<{ userId: string | null; name: string }[]>([]);
 const mentionQuery = ref<string | null>(null);
 const mentionIndex = ref(0);
 
@@ -75,20 +95,39 @@ const canSend = computed(
 
 // ─── Nhắc tên ─────────────────────────────────────────────────────────────────
 
-const mentionCandidates = computed<ChatParticipant[]>(() => {
+const displayNameOf = (participant: ChatParticipant) =>
+  participant.fullName || participant.email || "Người dùng";
+
+const mentionCandidates = computed<MentionOption[]>(() => {
   const conversation = activeConversation.value;
   if (!conversation || !isGroup(conversation) || mentionQuery.value === null) return [];
 
   const query = normalizeName(mentionQuery.value);
+  const others = membersOf(conversation).filter(
+    (p) => p.userId.toLowerCase() !== currentUserId.value,
+  );
 
-  return membersOf(conversation)
-    .filter((p) => p.userId.toLowerCase() !== currentUserId.value)
+  const people = others
     .filter((p) => !query || normalizeName(p.fullName || p.email || "").includes(query))
-    .slice(0, 5);
-});
+    .slice(0, 5)
+    .map<MentionOption>((p) => ({
+      userId: p.userId,
+      name: displayNameOf(p),
+      detail: p.email ?? "",
+      avatarUrl: p.avatarUrl,
+    }));
 
-const displayNameOf = (participant: ChatParticipant) =>
-  participant.fullName || participant.email || "Người dùng";
+  if (!others.length || !matchesEveryoneMention(query)) return people;
+
+  return [
+    {
+      userId: null,
+      name: EVERYONE_MENTION,
+      detail: `Báo cho cả ${others.length} thành viên trong nhóm`,
+    },
+    ...people,
+  ];
+});
 
 /** Chỉ nhận token ngay trước con trỏ; gặp khoảng trắng là kết thúc từ khoá. */
 const refreshMentionQuery = () => {
@@ -125,21 +164,21 @@ const onKeyup = (event: KeyboardEvent) => {
   refreshMentionQuery();
 };
 
-const pickMention = (participant: ChatParticipant) => {
+const pickMention = (option: MentionOption) => {
   const el = textarea.value;
   if (!el || mentionQuery.value === null) return;
 
   const caret = el.selectionStart;
   const tokenStart = caret - mentionQuery.value.length - 1;
-  const name = displayNameOf(participant);
+  const name = option.name;
 
   const after = body.value.slice(caret);
   const spacer = after.startsWith(" ") ? "" : " ";
 
   body.value = `${body.value.slice(0, tokenStart)}@${name}${spacer}${after}`;
   mentions.value = [
-    ...mentions.value.filter((m) => m.userId !== participant.userId),
-    { userId: participant.userId, name },
+    ...mentions.value.filter((m) => m.userId !== option.userId),
+    { userId: option.userId, name },
   ];
   mentionQuery.value = null;
 
@@ -272,11 +311,11 @@ const submit = () => {
   if (!canSend.value) return;
 
   const content = body.value;
-  const mentionedUserIds = mentions.value
-    .filter((m) => content.includes(`@${m.name}`))
-    .map((m) => m.userId);
+  const kept = mentions.value.filter((m) => content.includes(`@${m.name}`));
+  const mentionedUserIds = kept.flatMap((m) => (m.userId ? [m.userId] : []));
+  const mentionEveryone = kept.some((m) => m.userId === null);
 
-  emit("send", content, [...attachments.value], mentionedUserIds);
+  emit("send", content, [...attachments.value], mentionedUserIds, mentionEveryone);
 
   body.value = "";
   attachments.value = [];
@@ -506,20 +545,25 @@ defineExpose({ focus });
       v-if="mentionCandidates.length"
       class="absolute bottom-full left-3 z-20 mb-2 w-64 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg"
     >
-      <li v-for="(person, index) in mentionCandidates" :key="person.userId">
+      <li v-for="(option, index) in mentionCandidates" :key="option.userId ?? 'everyone'">
         <button
           type="button"
           class="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors"
           :class="index === mentionIndex ? 'bg-chat-accent/10' : 'hover:bg-gray-50'"
           @mouseenter="mentionIndex = index"
-          @click="pickMention(person)"
+          @click="pickMention(option)"
         >
-          <WidgetAvatar :name="displayNameOf(person)" :src="person.avatarUrl" size="xs" />
+          <WidgetAvatar
+            :name="option.name"
+            :src="option.avatarUrl"
+            :variant="option.userId ? 'user' : 'group'"
+            size="xs"
+          />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-xs font-medium text-gray-800">
-              {{ displayNameOf(person) }}
+              {{ option.name }}
             </span>
-            <span class="block truncate text-[11px] text-gray-600">{{ person.email }}</span>
+            <span class="block truncate text-[11px] text-gray-600">{{ option.detail }}</span>
           </span>
         </button>
       </li>
