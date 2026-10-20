@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
+import { useFileDownload } from "../core/store/useFileDownload";
 import { useImageViewer } from "../core/store/useImageViewer";
-import { useWidgetToast } from "../core/store/useWidgetToast";
 import { lockPageScroll, unlockPageScroll } from "../core/viewport";
 import { formatDateTime } from "../utils/format";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const { images, index, isOpen, current, close, goTo, next, prev } = useImageViewer();
 const { activeConversationId, revealMessage } = useChatStore();
-const toast = useWidgetToast();
+const { download: downloadFile, isDownloading: isFileDownloading } = useFileDownload();
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
@@ -23,7 +23,7 @@ const imageRef = ref<HTMLImageElement | null>(null);
 const stripRef = ref<HTMLElement | null>(null);
 
 const isLoaded = ref(false);
-const isDownloading = ref(false);
+const isDownloading = computed(() => Boolean(current.value && isFileDownloading(current.value.url)));
 const scale = ref(1);
 const offset = ref({ x: 0, y: 0 });
 const isPanning = ref(false);
@@ -157,30 +157,9 @@ const onStageClick = (event: MouseEvent) => {
 
 // ─── Hành động trên ảnh ──────────────────────────────────────────────────────
 
-/**
-* Tải qua blob để trình duyệt lưu thẳng thành tệp; gắn href trực tiếp thì ảnh sẽ mở ra
-* tab mới thay vì tải về.
-*/
-const download = async () => {
+const download = () => {
   const image = current.value;
-  if (!image || isDownloading.value) return;
-
-  isDownloading.value = true;
-  try {
-    const res = await fetch(image.url);
-    if (!res.ok) throw new Error(res.statusText);
-
-    const href = URL.createObjectURL(await res.blob());
-    const link = document.createElement("a");
-    link.href = href;
-    link.download = image.fileName;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(href), 1000);
-  } catch {
-    toast.error("Chưa tải được ảnh về máy, vui lòng thử lại");
-  } finally {
-    isDownloading.value = false;
-  }
+  if (image) downloadFile(image.url, image.fileName);
 };
 
 const goToMessage = async () => {

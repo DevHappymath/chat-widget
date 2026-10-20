@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
+import { useFileDownload } from "../core/store/useFileDownload";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
 import { MessageType, type ChatMessage, type MessageAttachment } from "../types/chat";
+import { attachmentIcon, isPreviewableInBrowser } from "../utils/attachment";
 import type { MessageCluster } from "../utils/chat";
 import {
   countEmojiOnly,
@@ -44,6 +46,7 @@ const {
 } = useChatStore();
 
 const imageViewer = useImageViewer();
+const { download: downloadFile, isDownloading } = useFileDownload();
 
 /** Đủ lâu để phân biệt với chạm thường, đủ ngắn để không thấy máy bị đơ. */
 const LONG_PRESS_MS = 450;
@@ -134,6 +137,14 @@ const openImage = (file: MessageAttachment) =>
     imagesFromMessages(activeMessages.value, (m) => m.senderName || nameOfUser(m.senderId)),
     file.id,
   );
+
+// PDF vẫn mở tab mới để xem nhanh; tệp khác bấm vào là tải về luôn cho khỏi vỡ dấu hay sai tên.
+const openFile = (event: MouseEvent, file: MessageAttachment) => {
+  if (isPreviewableInBrowser(file.contentType)) return;
+
+  event.preventDefault();
+  downloadFile(file.fileUrl, file.fileName);
+};
 
 /** Backend chỉ lưu userId của người được nhắc, tên phải tra ngược từ danh sách thành viên. */
 const contentSegments = (message: ChatMessage) =>
@@ -467,43 +478,83 @@ const onEditKeydown = (event: KeyboardEvent) => {
                 </p>
 
                 <template v-for="file in message.attachments" :key="file.id">
-                  <button
-                    v-if="file.contentType.startsWith('image/')"
-                    type="button"
-                    class="block max-w-full cursor-zoom-in overflow-hidden rounded-2xl ring-1 ring-gray-900/5"
-                    :aria-label="`Xem ảnh ${file.fileName}`"
-                    @click="openImage(file)"
-                  >
-                    <img
-                      :src="file.thumbnailUrl || file.fileUrl"
-                      :alt="file.fileName"
-                      :style="imageBox(file)"
-                      loading="lazy"
-                      class="max-h-52 w-auto max-w-full object-cover"
-                    />
-                  </button>
-
-                  <a
-                    v-else
-                    :href="file.fileUrl"
-                    target="_blank"
-                    rel="noopener"
-                    class="flex max-w-full items-center gap-2.5 rounded-2xl border border-gray-200 bg-white py-1.5 pl-1.5 pr-3.5 transition-colors hover:border-chat-accent/40 hover:bg-chat-accent/5"
-                  >
-                    <span
-                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-chat-accent/10 text-chat-accent-strong"
+                  <!-- Màn cảm ứng không có hover nên nút tải ẩn đi; ở đó tải ảnh trong trình xem ảnh. -->
+                  <div v-if="file.contentType.startsWith('image/')" class="group/img relative max-w-full">
+                    <button
+                      type="button"
+                      class="block max-w-full cursor-zoom-in overflow-hidden rounded-2xl ring-1 ring-gray-900/5"
+                      :aria-label="`Xem ảnh ${file.fileName}`"
+                      @click="openImage(file)"
                     >
-                      <WidgetIcon name="FileText" :size="17" />
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block truncate text-xs font-medium text-gray-900">
-                        {{ file.fileName }}
+                      <img
+                        :src="file.thumbnailUrl || file.fileUrl"
+                        :alt="file.fileName"
+                        :style="imageBox(file)"
+                        loading="lazy"
+                        class="max-h-52 w-auto max-w-full object-cover"
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      class="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-900/60 text-white opacity-0 transition-opacity hover:bg-gray-900/80 focus-visible:opacity-100 group-hover/img:opacity-100 chat-touch:hidden"
+                      :aria-label="`Tải ${file.fileName} về máy`"
+                      :title="`Tải ${file.fileName} về máy`"
+                      :disabled="isDownloading(file.fileUrl)"
+                      @click="downloadFile(file.fileUrl, file.fileName)"
+                    >
+                      <WidgetIcon
+                        :name="isDownloading(file.fileUrl) ? 'LoaderCircle' : 'Download'"
+                        :size="14"
+                        :class="isDownloading(file.fileUrl) ? 'animate-spin' : ''"
+                      />
+                    </button>
+                  </div>
+
+                  <div
+                    v-else
+                    class="flex max-w-full items-center gap-1 rounded-2xl border border-gray-200 bg-white py-1.5 pl-1.5 pr-1.5 transition-colors hover:border-chat-accent/40 hover:bg-chat-accent/5"
+                  >
+                    <a
+                      :href="file.fileUrl"
+                      target="_blank"
+                      rel="noopener"
+                      class="flex min-w-0 flex-1 items-center gap-2.5"
+                      :title="
+                        isPreviewableInBrowser(file.contentType)
+                          ? `Mở ${file.fileName}`
+                          : `Tải ${file.fileName} về máy`
+                      "
+                      @click="openFile($event, file)"
+                    >
+                      <span
+                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-chat-accent/10 text-chat-accent-strong"
+                      >
+                        <WidgetIcon :name="attachmentIcon(file.contentType)" :size="17" />
                       </span>
-                      <span class="block text-[11px] text-gray-600 tabular-nums">
-                        {{ formatBytes(file.sizeBytes, 0) }}
+                      <span class="min-w-0">
+                        <span class="block truncate text-xs font-medium text-gray-900">
+                          {{ file.fileName }}
+                        </span>
+                        <span class="block text-[11px] text-gray-600 tabular-nums">
+                          {{ formatBytes(file.sizeBytes, 0) }}
+                        </span>
                       </span>
-                    </span>
-                  </a>
+                    </a>
+                    <button
+                      type="button"
+                      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong disabled:cursor-wait"
+                      :aria-label="`Tải ${file.fileName} về máy`"
+                      :title="`Tải ${file.fileName} về máy`"
+                      :disabled="isDownloading(file.fileUrl)"
+                      @click="downloadFile(file.fileUrl, file.fileName)"
+                    >
+                      <WidgetIcon
+                        :name="isDownloading(file.fileUrl) ? 'LoaderCircle' : 'Download'"
+                        :size="16"
+                        :class="isDownloading(file.fileUrl) ? 'animate-spin' : ''"
+                      />
+                    </button>
+                  </div>
                 </template>
               </template>
             </div>

@@ -20,6 +20,7 @@ export const FALLBACK_ALLOWED_EXTENSIONS = [
   ".txt",
   ".csv",
   ".zip",
+  ".rar",
 ];
 
 export const MAX_ATTACHMENTS_PER_MESSAGE = 5;

@@ -5,6 +5,7 @@ import { fileApi } from "../core/services";
 import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import type { ChatParticipant, Sticker, UploadedFile } from "../types/chat";
+import { attachmentIcon } from "../utils/attachment";
 import {
   EVERYONE_MENTION,
   matchesEveryoneMention,
@@ -240,6 +241,13 @@ const onPaste = (event: ClipboardEvent) => {
   uploadFiles(images);
 };
 
+/** Tệp kéo thả vào khung chat, đi chung đường kiểm tra với tệp chọn qua nút đính kèm. */
+const addFiles = (files: File[]) => {
+  if (!files.length) return;
+  uploadFiles(files);
+  focus();
+};
+
 const removeAttachment = (fileUrl: string) => {
   attachments.value = attachments.value.filter((f) => f.fileUrl !== fileUrl);
 };
@@ -358,7 +366,7 @@ const onKeydown = (event: KeyboardEvent) => {
   submit();
 };
 
-defineExpose({ focus });
+defineExpose({ focus, addFiles });
 </script>
 
 <template>
@@ -391,7 +399,7 @@ defineExpose({ focus });
         class="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 py-1.5 pl-2.5 pr-1.5"
       >
         <WidgetIcon
-          :name="file.isImage ? 'Image' : 'FileText'"
+          :name="attachmentIcon(file.contentType)"
           :size="15"
           class="text-chat-accent-strong"
         />
@@ -440,7 +448,7 @@ defineExpose({ focus });
         type="button"
         class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
         aria-label="Đính kèm tệp"
-        :title="`Đính kèm tệp, tối đa ${formatBytes(attachmentRule.maxSizeBytes, 0)} mỗi tệp`"
+        :title="`Đính kèm tệp hoặc kéo thả vào khung chat, tối đa ${formatBytes(attachmentRule.maxSizeBytes, 0)} mỗi tệp`"
         @click="fileInput?.click()"
       >
         <WidgetIcon name="Paperclip" :size="18" />

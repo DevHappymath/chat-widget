@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
+import { useFileDownload } from "../core/store/useFileDownload";
 import { imagesFromMedia, useImageViewer } from "../core/store/useImageViewer";
 import { AttachmentKind, type ConversationAttachment } from "../types/chat";
+import { attachmentIcon, isPreviewableInBrowser } from "../utils/attachment";
 import { formatBytes } from "../utils/format";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -33,13 +35,20 @@ onMounted(() => {
 const isImage = (contentType: string) => contentType.startsWith("image/");
 
 const imageViewer = useImageViewer();
+const { download: downloadFile, isDownloading } = useFileDownload();
 
-// Ảnh xem ngay tại chỗ; tệp khác vẫn mở tab mới vì trình duyệt mới đọc được nội dung.
+// Ảnh xem ngay tại chỗ, PDF mở tab mới; tệp khác tải về luôn vì mở trên tab thường vỡ dấu hoặc sai tên.
 const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
-  if (!isImage(item.attachment.contentType)) return;
+  const { attachment } = item;
+  if (isImage(attachment.contentType)) {
+    event.preventDefault();
+    imageViewer.open(imagesFromMedia(mediaItems.value), attachment.id);
+    return;
+  }
+  if (isPreviewableInBrowser(attachment.contentType)) return;
 
   event.preventDefault();
-  imageViewer.open(imagesFromMedia(mediaItems.value), item.attachment.id);
+  downloadFile(attachment.fileUrl, attachment.fileName);
 };
 </script>
 
@@ -112,7 +121,7 @@ const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
                 v-else
                 class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-chat-accent/10 text-chat-accent-strong"
               >
-                <WidgetIcon name="FileText" :size="16" />
+                <WidgetIcon :name="attachmentIcon(item.attachment.contentType)" :size="16" />
               </span>
 
               <span class="min-w-0 flex-1">
@@ -125,6 +134,21 @@ const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
                 </span>
               </span>
             </a>
+
+            <button
+              type="button"
+              class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong disabled:cursor-wait"
+              :aria-label="`Tải ${item.attachment.fileName} về máy`"
+              title="Tải về máy"
+              :disabled="isDownloading(item.attachment.fileUrl)"
+              @click="downloadFile(item.attachment.fileUrl, item.attachment.fileName)"
+            >
+              <WidgetIcon
+                :name="isDownloading(item.attachment.fileUrl) ? 'LoaderCircle' : 'Download'"
+                :size="14"
+                :class="isDownloading(item.attachment.fileUrl) ? 'animate-spin' : ''"
+              />
+            </button>
 
             <button
               type="button"
