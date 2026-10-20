@@ -22,6 +22,9 @@ const {
   activeTypingNames,
   hasMoreMessages,
   isLoadingMessages,
+  unreadMarker,
+  isThreadAtBottom,
+  shouldRevealUnread,
   draft,
   isGroup,
   isOnline,
@@ -33,6 +36,8 @@ const {
   sendMessage,
   sendSticker,
   loadOlderMessages,
+  markRead,
+  isOwnMessage,
   notifyTyping,
   toggleMute,
   attachmentRule,
@@ -79,8 +84,25 @@ const partnerIsDoNotDisturb = computed(
   () => !group.value && statusOf(headerPartnerId.value) === PresenceStatus.DoNotDisturb,
 );
 
+/**
+ * Tin của người khác đầu tiên nằm sau mốc đã đọc. Cả hội thoại chỉ có loạt tin đó thì bỏ vạch,
+ * vì không còn phần đã đọc nào để tách.
+ */
+const firstUnreadSequence = computed(() => {
+  const marker = unreadMarker.value;
+  if (!marker || marker.conversationId !== activeConversationId.value) return null;
+
+  const messages = activeMessages.value;
+  const index = messages.findIndex(
+    (m) => m.sequence > marker.afterSequence && !isOwnMessage(m),
+  );
+  if (index < 0 || (index === 0 && !hasMoreMessages.value)) return null;
+
+  return messages[index].sequence;
+});
+
 const dayGroups = computed(() =>
-  groupChatMessages(activeMessages.value, currentUserId.value),
+  groupChatMessages(activeMessages.value, currentUserId.value, firstUnreadSequence.value),
 );
 
 const lastOwnClusterKey = computed(() => {
@@ -95,15 +117,97 @@ const typingLabel = computed(() => {
   return `${names.length} người đang soạn tin...`;
 });
 
-const scrollToBottom = () => {
+/** Cách đáy trong khoảng này vẫn tính là đang xem tin mới nhất, tin đến sẽ tự cuộn theo. */
+const AT_BOTTOM_THRESHOLD_PX = 64;
+
+/** Chừa một khoảng phía trên vạch tin chưa đọc để còn thấy tin cũ liền trước làm ngữ cảnh. */
+const UNREAD_DIVIDER_OFFSET_PX = 40;
+
+/** Tin mới đến trong lúc đang cuộn lên; cuộn xuống đáy là đã đọc nên số này về 0. */
+const newMessageCount = computed(() =>
+  isThreadAtBottom.value ? 0 : (activeConversation.value?.unreadCount ?? 0),
+);
+
+const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
   const el = scroller.value;
-  if (el) el.scrollTop = el.scrollHeight;
+  if (el) el.scrollTo({ top: el.scrollHeight, behavior });
 };
 
+const isNearBottom = (el: HTMLElement) =>
+  el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD_PX;
+
+/** Xuống tới tin cuối là đã đọc hết, kể cả loạt tin về trong lúc đang cuộn lên. */
+const setAtBottom = (atBottom: boolean) => {
+  isThreadAtBottom.value = atBottom;
+  if (atBottom && activeConversationId.value && document.visibilityState === "visible") {
+    markRead(activeConversationId.value);
+  }
+};
+
+const onScroll = () => {
+  const el = scroller.value;
+  if (!el) return;
+
+  const atBottom = isNearBottom(el);
+  if (atBottom !== isThreadAtBottom.value) setAtBottom(atBottom);
+};
+
+/** Loạt tin chưa đọc dài hơn một màn thì dừng ở vạch để đọc từ tin đầu, ngắn thì xuống đáy luôn. */
+const scrollToFirstUnread = () => {
+  const el = scroller.value;
+  if (!el) return;
+
+  const divider = el.querySelector<HTMLElement>("[data-unread-divider]");
+  if (!divider) {
+    scrollToBottom();
+    return;
+  }
+
+  const dividerTop =
+    divider.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+  el.scrollTop = Math.min(
+    el.scrollHeight - el.clientHeight,
+    dividerTop - UNREAD_DIVIDER_OFFSET_PX,
+  );
+};
+
+/** Hội thoại đã đặt vị trí đọc ban đầu, để phân biệt mở hội thoại với có tin mới về. */
+let positionedConversationId: string | null = null;
+
+// Chỉ theo tin cuối: tải thêm tin cũ ở phía trên không được kéo người đọc xuống đáy.
 // Chờ render xong bong bóng mới rồi mới cuộn, nếu không scrollHeight vẫn là giá trị cũ.
 watch(
-  [() => activeConversationId.value, () => activeMessages.value.length],
-  () => nextTick(scrollToBottom),
+  [() => activeConversationId.value, () => activeMessages.value.at(-1)?.id],
+  async ([conversationId]) => {
+    if (!conversationId) {
+      positionedConversationId = null;
+      return;
+    }
+
+    const last = activeMessages.value.at(-1);
+    if (!last) return;
+
+    if (positionedConversationId !== conversationId) {
+      positionedConversationId = conversationId;
+      const revealUnread = shouldRevealUnread.value;
+      shouldRevealUnread.value = false;
+
+      await nextTick();
+      if (revealUnread) scrollToFirstUnread();
+      else scrollToBottom();
+
+      // Khung chat dựng lại sau khi rời màn khác, trạng thái cũ không còn đúng; nội dung ngắn
+      // không cuộn được thì cũng không có sự kiện scroll để tự đồng bộ.
+      if (scroller.value) setAtBottom(isNearBottom(scroller.value));
+      return;
+    }
+
+    // Đang cuộn lên đọc tin cũ thì giữ nguyên chỗ, tin mới chỉ hiện ở nút đếm.
+    if (isThreadAtBottom.value || isOwnMessage(last)) {
+      await nextTick();
+      scrollToBottom();
+    }
+  },
   { immediate: true },
 );
 
@@ -221,49 +325,84 @@ const onLoadOlder = async () => {
 
     <PinnedBar />
 
-    <div ref="scroller" class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3">
-      <div v-if="hasMoreMessages" class="mb-3 flex justify-center">
-        <button
-          type="button"
-          class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
-          :disabled="isLoadingMessages"
-          @click="onLoadOlder"
-        >
-          {{ isLoadingMessages ? "Đang tải..." : "Tải tin nhắn cũ hơn" }}
-        </button>
-      </div>
-
+    <div class="relative flex min-h-0 flex-1 flex-col">
       <div
-        v-if="!dayGroups.length && !isLoadingMessages"
-        class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
+        ref="scroller"
+        class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3"
+        @scroll.passive="onScroll"
       >
-        <WidgetAvatar
-          :name="headerTitle"
-          :variant="group ? 'group' : 'user'"
-          :src="activeConversation?.avatarUrl ?? draft?.avatarUrl"
-          size="lg"
-        />
-        <p class="mt-1 text-sm font-semibold text-gray-800">{{ headerTitle }}</p>
-        <p class="max-w-56 text-xs text-gray-600">
-          Chưa có tin nhắn nào. Gửi lời chào để bắt đầu hội thoại.
-        </p>
-      </div>
-
-      <div v-for="day in dayGroups" :key="day.key" class="space-y-3">
-        <div class="flex items-center gap-3 py-2">
-          <span class="h-px flex-1 bg-gray-100" />
-          <span class="text-[11px] font-medium text-gray-500">{{ day.label }}</span>
-          <span class="h-px flex-1 bg-gray-100" />
+        <div v-if="hasMoreMessages" class="mb-3 flex justify-center">
+          <button
+            type="button"
+            class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+            :disabled="isLoadingMessages"
+            @click="onLoadOlder"
+          >
+            {{ isLoadingMessages ? "Đang tải..." : "Tải tin nhắn cũ hơn" }}
+          </button>
         </div>
 
-        <MessageCluster
-          v-for="cluster in day.clusters"
-          :key="cluster.key"
-          :cluster="cluster"
-          :show-sender-name="group"
-          :show-status="cluster.key === lastOwnClusterKey"
-        />
+        <div
+          v-if="!dayGroups.length && !isLoadingMessages"
+          class="flex h-full flex-col items-center justify-center gap-2 px-6 text-center"
+        >
+          <WidgetAvatar
+            :name="headerTitle"
+            :variant="group ? 'group' : 'user'"
+            :src="activeConversation?.avatarUrl ?? draft?.avatarUrl"
+            size="lg"
+          />
+          <p class="mt-1 text-sm font-semibold text-gray-800">{{ headerTitle }}</p>
+          <p class="max-w-56 text-xs text-gray-600">
+            Chưa có tin nhắn nào. Gửi lời chào để bắt đầu hội thoại.
+          </p>
+        </div>
+
+        <div v-for="day in dayGroups" :key="day.key" class="space-y-3">
+          <div class="flex items-center gap-3 py-2">
+            <span class="h-px flex-1 bg-gray-100" />
+            <span class="text-[11px] font-medium text-gray-500">{{ day.label }}</span>
+            <span class="h-px flex-1 bg-gray-100" />
+          </div>
+
+          <template v-for="cluster in day.clusters" :key="cluster.key">
+            <div
+              v-if="cluster.messages[0].sequence === firstUnreadSequence"
+              data-unread-divider
+              role="separator"
+              aria-label="Tin chưa đọc"
+              class="flex items-center gap-3 py-1"
+            >
+              <span class="h-px flex-1 bg-chat-accent/40" />
+              <span class="text-[11px] font-semibold text-chat-accent-strong">Tin chưa đọc</span>
+              <span class="h-px flex-1 bg-chat-accent/40" />
+            </div>
+
+            <MessageCluster
+              :cluster="cluster"
+              :show-sender-name="group"
+              :show-status="cluster.key === lastOwnClusterKey"
+            />
+          </template>
+        </div>
       </div>
+
+      <Transition
+        enter-active-class="transition duration-150 ease-out motion-reduce:transition-none"
+        enter-from-class="translate-y-1.5 opacity-0"
+        leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
+        leave-to-class="translate-y-1.5 opacity-0"
+      >
+        <button
+          v-if="newMessageCount > 0"
+          type="button"
+          class="absolute bottom-2.5 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-chat-accent px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-chat-accent/25 transition-colors hover:bg-chat-accent-strong"
+          @click="scrollToBottom('smooth')"
+        >
+          <WidgetIcon name="ArrowDown" :size="14" />
+          {{ newMessageCount > 99 ? "99+" : newMessageCount }} tin mới
+        </button>
+      </Transition>
     </div>
 
     <p

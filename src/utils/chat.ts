@@ -65,10 +65,12 @@ export interface MessageDayGroup {
 /**
  * Chia tin nhắn thành nhóm theo ngày, trong mỗi ngày lại gom thành cụm cùng người gửi để
  * chỉ vẽ avatar và tên một lần cho cả cụm.
+ * @param breakBeforeSequence tin có sequence này luôn mở cụm mới, để chèn được vạch tin chưa đọc.
  */
 export const groupChatMessages = (
   messages: ChatMessage[],
   currentUserId: string,
+  breakBeforeSequence: number | null = null,
 ): MessageDayGroup[] => {
   const days: MessageDayGroup[] = [];
 
@@ -92,6 +94,7 @@ export const groupChatMessages = (
     if (
       cluster &&
       withinWindow &&
+      message.sequence !== breakBeforeSequence &&
       cluster.senderId === message.senderId &&
       cluster.isSystem === isSystem
     ) {

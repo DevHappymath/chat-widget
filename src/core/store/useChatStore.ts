@@ -66,6 +66,9 @@ const TYPING_TTL_MS = 4000;
 
 const PAGE_SIZE = 30;
 
+/** Trần số tin mỗi lần tải lịch sử phía server. */
+const MAX_HISTORY_LIMIT = 100;
+
 const SEARCH_PAGE_SIZE = 20;
 
 const MEDIA_PAGE_SIZE = 30;
@@ -78,6 +81,12 @@ const MAX_REVEAL_PAGES = 5;
 
 /** Gộp các event dồn dập vào một lần gọi bootstrap để nắn lại số trên bong bóng. */
 const BADGE_REFRESH_DELAY_MS = 4000;
+
+/** Vạch "Tin chưa đọc" đặt ngay trước tin đầu tiên của người khác có sequence lớn hơn mốc này. */
+export interface UnreadMarker {
+  conversationId: string;
+  afterSequence: number;
+}
 
 interface TypingEntry {
   conversationId: string;
@@ -157,6 +166,14 @@ const actionSheetAnchor = ref<MessageActionAnchor | null>(null);
 /** Bảng thao tác đang hiện bảng biểu tượng đầy đủ thay cho danh sách thao tác. */
 const actionSheetShowsEmojiPicker = ref(false);
 const highlightedMessageId = ref<string | null>(null);
+const unreadMarker = ref<UnreadMarker | null>(null);
+/** Khung chat đang cuộn sát đáy, tức người dùng đang thấy tin mới nhất. */
+const isThreadAtBottom = ref(true);
+/**
+ * Lần dựng khung chat kế tiếp phải dừng ở vạch tin chưa đọc thay vì xuống đáy. Chỉ bật khi mở
+ * hội thoại từ ngoài vào, quay lại từ màn thông tin hay tìm kiếm thì vẫn xuống đáy như cũ.
+ */
+const shouldRevealUnread = ref(false);
 
 const filter = ref<ConversationFilter>("all");
 const keyword = ref("");
@@ -613,11 +630,21 @@ export const useChatStore = () => {
       conversation.lastMessageAtUtc = message.createdAtUtc;
     }
 
-    // Tab của site đang ẩn thì người dùng chưa thấy tin, kể cả khi panel mở đúng hội thoại.
-    const isReading =
+    // Tab của site ẩn hoặc đang cuộn lên đọc tin cũ thì chưa thấy tin mới, kể cả khi panel mở
+    // đúng hội thoại.
+    const isWatching =
       isThreadVisible.value &&
       activeConversationId.value === conversation.id &&
       document.visibilityState === "visible";
+    const isReading = isWatching && isThreadAtBottom.value;
+
+    if (
+      activeConversationId.value === conversation.id &&
+      !isReading &&
+      !isOwnMessage(message)
+    ) {
+      markUnreadFrom(conversation);
+    }
 
     if (isReading || isOwnMessage(message)) {
       // Đang mở đúng hội thoại thì báo server luôn, nếu không badge ở tab khác cứ sáng mãi.
@@ -646,7 +673,27 @@ export const useChatStore = () => {
         e.userId !== message.senderId.toLowerCase(),
     );
 
-    if (!isReading) alertIncoming(message);
+    // Đang cuộn lên trong chính hội thoại này thì đã có nút "tin mới" báo, không bật thêm thẻ nổi.
+    if (!isWatching) alertIncoming(message);
+  };
+
+  /**
+   * Đặt vạch ngay trên loạt tin người dùng chưa thấy. Vạch cũ mà phần dưới nó đã đọc hết rồi
+   * thì dời xuống loạt mới, còn đang dở thì giữ để không mất chỗ bắt đầu đọc.
+   */
+  const markUnreadFrom = (conversation: ChatConversation) => {
+    const marker = unreadMarker.value;
+    if (
+      marker?.conversationId === conversation.id &&
+      marker.afterSequence >= conversation.lastReadSequence
+    ) {
+      return;
+    }
+
+    unreadMarker.value = {
+      conversationId: conversation.id,
+      afterSequence: conversation.lastReadSequence,
+    };
   };
 
   /**
@@ -713,12 +760,16 @@ export const useChatStore = () => {
     }
   };
 
-  const loadMessages = async (conversationId: string, beforeSequence?: number) => {
+  const loadMessages = async (
+    conversationId: string,
+    beforeSequence?: number,
+    limit = PAGE_SIZE,
+  ) => {
     isLoadingMessages.value = true;
     try {
       const res = await messageApi.getHistory(conversationId, {
         beforeSequence,
-        limit: PAGE_SIZE,
+        limit,
       });
 
       // Server trả sequence giảm dần; UI dựng từ cũ đến mới nên phải đảo lại.
@@ -786,8 +837,21 @@ export const useChatStore = () => {
     isPinnedBarExpanded.value = false;
     messageAlerts.dismiss(id);
 
+    // Chốt mốc trước markRead, vì markRead đẩy lastReadSequence lên ngay.
+    const conversation = findConversation(id);
+    const unread = conversation
+      ? conversation.lastSequence - conversation.lastReadSequence
+      : 0;
+    unreadMarker.value =
+      conversation && unread > 0
+        ? { conversationId: id, afterSequence: conversation.lastReadSequence }
+        : null;
+    isThreadAtBottom.value = true;
+    shouldRevealUnread.value = true;
+
     if (!messagesByConversation.value[id]) {
-      await loadMessages(id);
+      // Tải dư thêm một trang để vạch tin chưa đọc có tin cũ phía trên làm ngữ cảnh.
+      await loadMessages(id, undefined, Math.min(MAX_HISTORY_LIMIT, PAGE_SIZE + unread));
     }
 
     await Promise.all([markRead(id), loadPinnedMessages(id)]);
@@ -947,6 +1011,9 @@ export const useChatStore = () => {
 
     upsertMessage(optimistic);
     pendingClientIds.value = [...pendingClientIds.value, clientMessageId];
+
+    // Đã trả lời thì coi như đọc xong phần chưa đọc, vạch chỉ còn làm rối.
+    if (unreadMarker.value?.conversationId === conversationId) unreadMarker.value = null;
 
     // Đẩy hội thoại lên đầu ngay, không chờ server. Cố tình không đụng lastSequence: sequence
     // của bản lạc quan là số bịa, ghi vào sẽ chặn mất tin thật khi nó về.
@@ -1666,6 +1733,10 @@ export const useChatStore = () => {
 
     // Đóng panel rồi mở lại vẫn ở đúng hội thoại cũ, tin đến trong lúc đóng phải được đánh dấu.
     if (view.value === "thread" && activeConversationId.value) {
+      const conversation = findConversation(activeConversationId.value);
+      if (conversation && conversation.lastSequence > conversation.lastReadSequence) {
+        shouldRevealUnread.value = true;
+      }
       await markRead(activeConversationId.value);
     }
   };
@@ -1751,6 +1822,9 @@ export const useChatStore = () => {
     saveMyAvatar,
     // panel
     isPanelOpen,
+    unreadMarker,
+    isThreadAtBottom,
+    shouldRevealUnread,
     view,
     badgeCount,
     unreadMessageCount,

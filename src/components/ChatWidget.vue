@@ -29,6 +29,7 @@ const {
   minimizeConversation,
   refreshBadge,
   markRead,
+  isThreadAtBottom,
   minimizedConversations,
 } = useChatStore();
 
@@ -82,12 +83,18 @@ const tabUnread = computed(() => (canUseChat.value ? unreadMessageCount.value : 
 watch(tabUnread, (count) => setTabUnread(count));
 
 // Tab ngủ dậy có thể đã lỡ vài event, nắn lại số trên bong bóng thay vì tin vào bộ đếm cũ.
-// Tin đến lúc tab ẩn chưa tính là đã đọc, nên panel đang mở đúng hội thoại thì đánh dấu lúc này.
+// Tin đến lúc tab ẩn chưa tính là đã đọc, nên panel đang mở đúng hội thoại và đang thấy tin cuối
+// thì đánh dấu lúc này; đang cuộn lên thì để nút "tin mới" lo.
 const onVisibilityChange = () => {
   if (document.visibilityState !== "visible") return;
 
   refreshBadge();
-  if (isPanelOpen.value && view.value === "thread" && activeConversationId.value) {
+  if (
+    isPanelOpen.value &&
+    view.value === "thread" &&
+    activeConversationId.value &&
+    isThreadAtBottom.value
+  ) {
     markRead(activeConversationId.value);
   }
 };
