@@ -24,6 +24,41 @@ export const useIsWideViewport = () => {
   return readonly(isWide);
 };
 
+/** Còn cách đáy trong khoảng này thì coi như đã cuộn tới cuối, đỡ lệch do làm tròn pixel. */
+const PAGE_END_THRESHOLD = 8;
+
+const isAtPageEnd = ref(false);
+let isWatchingPageEnd = false;
+
+const measurePageEnd = () => {
+  const { scrollHeight } = document.documentElement;
+  const viewportHeight = window.innerHeight;
+
+  // Trang không cuộn được thì bong bóng không che thêm gì, cứ để hiện.
+  if (scrollHeight <= viewportHeight + PAGE_END_THRESHOLD) {
+    isAtPageEnd.value = false;
+    return;
+  }
+
+  isAtPageEnd.value = window.scrollY + viewportHeight >= scrollHeight - PAGE_END_THRESHOLD;
+};
+
+/**
+ * Trang đã cuộn tới đáy hay chưa. Đo lại cả khi nội dung đổi chiều cao (chuyển trang trong SPA,
+ * tải thêm dữ liệu) chứ không chỉ lúc cuộn, vì khi đó đáy trang dịch đi mà không có sự kiện cuộn.
+ */
+export const useIsAtPageEnd = () => {
+  if (!isWatchingPageEnd && typeof window !== "undefined") {
+    isWatchingPageEnd = true;
+    measurePageEnd();
+    window.addEventListener("scroll", measurePageEnd, { passive: true });
+    window.addEventListener("resize", measurePageEnd);
+    new ResizeObserver(measurePageEnd).observe(document.body);
+  }
+
+  return readonly(isAtPageEnd);
+};
+
 let savedScrollY = 0;
 /** Panel và trình xem ảnh cùng khoá được; chỉ mở lại khi bên khoá cuối cùng đã nhả. */
 let lockCount = 0;

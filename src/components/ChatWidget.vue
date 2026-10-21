@@ -3,7 +3,12 @@ import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { configureChatWidget, type ChatWidgetConfig } from "../core/config";
 import { useChatStore } from "../core/store/useChatStore";
 import { setTabUnread, startTabAttention, stopTabAttention } from "../core/tabAttention";
-import { lockPageScroll, unlockPageScroll, useIsWideViewport } from "../core/viewport";
+import {
+  lockPageScroll,
+  unlockPageScroll,
+  useIsAtPageEnd,
+  useIsWideViewport,
+} from "../core/viewport";
 import ChatPanel from "./ChatPanel.vue";
 import ImageViewer from "./ImageViewer.vue";
 import MessageActionSheet from "./MessageActionSheet.vue";
@@ -34,6 +39,11 @@ const {
 } = useChatStore();
 
 const isWide = useIsWideViewport();
+const isAtPageEnd = useIsAtPageEnd();
+
+// Cuối trang thường là chân trang, nút bấm phân trang... bong bóng nổi sẽ đè lên. Panel đang mở
+// thì người dùng đang chat dở, không được giấu đi.
+const isLauncherHidden = computed(() => isAtPageEnd.value && !isPanelOpen.value);
 
 // Panel phủ toàn màn hình thì trang nền không được cuộn theo; ở desktop panel chỉ là một
 // khung nổi nên vẫn để người dùng cuộn trang bình thường.
@@ -69,8 +79,8 @@ const bubbleClass = computed(() =>
 // thấy và bấm chuyển được trong lúc đang chat.
 const panelClass = computed(() =>
   isLeft.value
-    ? "sm:bottom-[var(--gdtd-chat-y)] sm:left-[calc(var(--gdtd-chat-x)+4.25rem)]"
-    : "sm:bottom-[var(--gdtd-chat-y)] sm:right-[calc(var(--gdtd-chat-x)+4.25rem)]",
+    ? "sm:left-[calc(var(--gdtd-chat-x)+4.25rem)]"
+    : "sm:right-[calc(var(--gdtd-chat-x)+4.25rem)]",
 );
 
 const badgeLabel = computed(() => (badgeCount.value > 99 ? "99+" : `${badgeCount.value}`));
@@ -132,40 +142,47 @@ onBeforeUnmount(() => {
       >
         <div
           v-if="isPanelOpen"
-          class="pointer-events-auto absolute inset-0 sm:inset-auto sm:h-[620px] sm:max-h-[calc(100dvh-var(--gdtd-chat-y)-2rem)] sm:w-[380px]"
+          class="pointer-events-auto absolute inset-0 sm:inset-auto sm:bottom-0 sm:h-[520px] sm:max-h-[calc(100dvh-1rem)] sm:w-[380px]"
           :class="panelClass"
         >
           <ChatPanel />
         </div>
       </Transition>
 
-      <!-- Màn hẹp thì panel phủ kín, avatar nổi lên trên chỉ che mất ô nhập tin. -->
-      <MinimizedChats :side="isLeft ? 'left' : 'right'" :class="isPanelOpen && 'max-sm:hidden'" />
-
-      <MessageAlerts
-        v-if="!isPanelOpen"
-        :side="isLeft ? 'left' : 'right'"
-        :stacked-heads="minimizedConversations.length"
-      />
-
-      <button
-        type="button"
-        class="pointer-events-auto absolute inline-flex h-14 w-14 items-center justify-center rounded-full bg-chat-accent-strong text-white shadow-lg transition-transform hover:brightness-110 active:scale-95"
-        :class="[bubbleClass, isPanelOpen && 'max-sm:hidden']"
-        :aria-label="isPanelOpen ? 'Đóng khung chat' : 'Mở khung chat'"
-        :aria-expanded="isPanelOpen"
-        @click="togglePanel"
+      <!-- `invisible` để phần đang ẩn không còn nhận click, đè lên chân trang của site. -->
+      <div
+        class="absolute inset-0 transition-[opacity,translate,visibility] duration-200"
+        :class="isLauncherHidden && 'invisible translate-y-4 opacity-0'"
+        :aria-hidden="isLauncherHidden || undefined"
       >
-        <WidgetIcon :name="isPanelOpen ? 'ChevronDown' : 'MessageCircle'" :size="24" />
+        <!-- Màn hẹp thì panel phủ kín, avatar nổi lên trên chỉ che mất ô nhập tin. -->
+        <MinimizedChats :side="isLeft ? 'left' : 'right'" :class="isPanelOpen && 'max-sm:hidden'" />
 
-        <span
-          v-if="badgeCount > 0 && !isPanelOpen"
-          class="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold tabular-nums text-white ring-2 ring-white"
-          :aria-label="`${badgeCount} hội thoại chưa đọc`"
+        <MessageAlerts
+          v-if="!isPanelOpen"
+          :side="isLeft ? 'left' : 'right'"
+          :stacked-heads="minimizedConversations.length"
+        />
+
+        <button
+          type="button"
+          class="pointer-events-auto absolute inline-flex h-14 w-14 items-center justify-center rounded-full bg-chat-accent-strong text-white shadow-lg transition-transform hover:brightness-110 active:scale-95"
+          :class="[bubbleClass, isPanelOpen && 'max-sm:hidden']"
+          :aria-label="isPanelOpen ? 'Đóng khung chat' : 'Mở khung chat'"
+          :aria-expanded="isPanelOpen"
+          @click="togglePanel"
         >
-          {{ badgeLabel }}
-        </span>
-      </button>
+          <WidgetIcon :name="isPanelOpen ? 'ChevronDown' : 'MessageCircle'" :size="24" />
+
+          <span
+            v-if="badgeCount > 0 && !isPanelOpen"
+            class="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold tabular-nums text-white ring-2 ring-white"
+            :aria-label="`${badgeCount} hội thoại chưa đọc`"
+          >
+            {{ badgeLabel }}
+          </span>
+        </button>
+      </div>
     </div>
   </Teleport>
 

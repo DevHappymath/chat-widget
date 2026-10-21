@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useChatStore, type ConversationFilter } from "../core/store/useChatStore";
 import { debounce } from "../utils/debounce";
 import ConversationRow from "./ConversationRow.vue";
@@ -43,6 +43,22 @@ watch(isSearching, (searching) => {
   if (!searching) searchScope.value = "conversations";
 });
 
+// Store giữ từ khoá qua lần đóng/mở panel, còn từ khoá thì phải thấy ô tìm để biết danh sách đang lọc.
+const isSearchOpen = ref(isSearching.value);
+const searchInput = ref<HTMLInputElement | null>(null);
+
+// Đóng ô tìm mà giữ từ khoá thì danh sách vẫn lọc ngầm, người dùng tưởng mất hội thoại.
+const toggleSearch = async () => {
+  isSearchOpen.value = !isSearchOpen.value;
+  if (!isSearchOpen.value) {
+    keyword.value = "";
+    return;
+  }
+
+  await nextTick();
+  searchInput.value?.focus();
+};
+
 const searchScopes: { value: SearchScope; label: string }[] = [
   { value: "conversations", label: "Hội thoại" },
   { value: "messages", label: "Tin nhắn" },
@@ -58,55 +74,74 @@ const emptyHint = computed(() => {
 
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
-    <div class="shrink-0 px-3 pb-2 pt-3">
-      <div class="relative">
+    <div class="shrink-0 px-3 pb-2 pt-2.5">
+      <div class="flex items-center gap-1">
+        <nav v-if="isSearching" class="flex min-w-0 flex-1 gap-1">
+          <button
+            v-for="scope in searchScopes"
+            :key="scope.value"
+            type="button"
+            class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+            :class="
+              searchScope === scope.value
+                ? 'bg-chat-accent-strong text-white'
+                : 'text-gray-600 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
+            "
+            @click="searchScope = scope.value"
+          >
+            {{ scope.label }}
+          </button>
+        </nav>
+
+        <nav v-else class="flex min-w-0 flex-1 gap-1">
+          <button
+            v-for="tab in tabs"
+            :key="tab.value"
+            type="button"
+            class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+            :class="
+              filter === tab.value
+                ? 'bg-chat-accent-strong text-white'
+                : 'text-gray-600 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
+            "
+            @click="filter = tab.value"
+          >
+            {{ tab.label }}
+            <span v-if="tab.badge" class="ml-0.5 tabular-nums opacity-70">{{ tab.badge }}</span>
+          </button>
+        </nav>
+
+        <button
+          type="button"
+          class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors"
+          :class="
+            isSearchOpen
+              ? 'bg-chat-accent/10 text-chat-accent-strong'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+          "
+          :aria-label="isSearchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'"
+          :title="isSearchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'"
+          :aria-expanded="isSearchOpen"
+          @click="toggleSearch"
+        >
+          <WidgetIcon name="Search" :size="16" />
+        </button>
+      </div>
+
+      <div v-if="isSearchOpen" class="relative mt-2">
         <WidgetIcon
           name="Search"
           :size="16"
           class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
         />
         <input
+          ref="searchInput"
           v-model="keyword"
           type="search"
           placeholder="Tìm hội thoại hoặc đồng nghiệp"
           class="w-full rounded-xl border border-transparent bg-gray-100 py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-500 focus:border-chat-accent/50 focus:bg-white"
         />
       </div>
-
-      <nav v-if="isSearching" class="mt-2 flex gap-1">
-        <button
-          v-for="scope in searchScopes"
-          :key="scope.value"
-          type="button"
-          class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-          :class="
-            searchScope === scope.value
-              ? 'bg-chat-accent-strong text-white'
-              : 'text-gray-600 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
-          "
-          @click="searchScope = scope.value"
-        >
-          {{ scope.label }}
-        </button>
-      </nav>
-
-      <nav v-else class="mt-2 flex gap-1">
-        <button
-          v-for="tab in tabs"
-          :key="tab.value"
-          type="button"
-          class="rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
-          :class="
-            filter === tab.value
-              ? 'bg-chat-accent-strong text-white'
-              : 'text-gray-600 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
-          "
-          @click="filter = tab.value"
-        >
-          {{ tab.label }}
-          <span v-if="tab.badge" class="ml-0.5 tabular-nums opacity-70">{{ tab.badge }}</span>
-        </button>
-      </nav>
     </div>
 
     <div class="gdtd-chat-scroll min-h-0 flex-1 overflow-y-auto border-t border-gray-100">

@@ -72,7 +72,7 @@ const subheading = computed(() => {
 
 <template>
   <section
-    class="relative flex h-full w-full flex-col overflow-hidden bg-white sm:rounded-2xl sm:border sm:border-gray-200 sm:shadow-2xl"
+    class="relative flex h-full w-full flex-col overflow-hidden bg-white sm:rounded-t-2xl sm:border sm:border-b-0 sm:border-gray-200 sm:shadow-2xl"
     role="dialog"
     aria-label="Khung chat"
   >
@@ -90,7 +90,7 @@ const subheading = computed(() => {
       </button>
 
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-bold">{{ heading }}</p>
+        <p class="truncate text-sm font-medium">{{ heading }}</p>
         <button
           v-if="showPresenceTrigger && myPresence"
           type="button"
