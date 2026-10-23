@@ -10,22 +10,26 @@ const props = withDefaults(
     side: "left" | "right";
     /** Số avatar hội thoại thu nhỏ đang xếp trên bong bóng, thẻ phải nằm trên cả chúng. */
     stackedHeads?: number;
+    /** Bong bóng và dãy avatar đang ẩn ở cuối trang: thẻ hạ xuống chỗ của chúng. */
+    launcherHidden?: boolean;
   }>(),
-  { stackedHeads: 0 },
+  { stackedHeads: 0, launcherHidden: false },
 );
 
 const { openPanel, selectConversation } = useChatStore();
 const { alerts, dismiss, pause, resume } = useMessageAlerts();
 
-// Xếp ngay trên bong bóng (cao 3.5rem) và bám cùng mép với nó; mỗi avatar thu nhỏ chiếm
-// thêm 3.25rem (2.75rem avatar + 0.5rem khoảng hở).
 const anchorClass = computed(() =>
   props.side === "left"
-    ? "bottom-[calc(var(--gdtd-chat-y)+4.25rem+var(--gdtd-chat-heads))] left-[var(--gdtd-chat-x)]"
-    : "bottom-[calc(var(--gdtd-chat-y)+4.25rem+var(--gdtd-chat-heads))] right-[var(--gdtd-chat-x)]",
+    ? "bottom-[calc(var(--gdtd-chat-y)+var(--gdtd-chat-stack))] left-[var(--gdtd-chat-x)]"
+    : "bottom-[calc(var(--gdtd-chat-y)+var(--gdtd-chat-stack))] right-[var(--gdtd-chat-x)]",
 );
 
-const anchorVars = computed(() => ({ "--gdtd-chat-heads": `${props.stackedHeads * 3.25}rem` }));
+// Xếp ngay trên bong bóng (cao 3.5rem) và bám cùng mép với nó; mỗi avatar thu nhỏ chiếm
+// thêm 3.25rem (2.75rem avatar + 0.5rem khoảng hở).
+const anchorVars = computed(() => ({
+  "--gdtd-chat-stack": props.launcherHidden ? "0rem" : `${4.25 + props.stackedHeads * 3.25}rem`,
+}));
 
 const open = async (conversationId: string) => {
   window.focus();
@@ -36,7 +40,7 @@ const open = async (conversationId: string) => {
 
 <template>
   <div
-    class="absolute flex w-[min(22rem,calc(100vw-2*var(--gdtd-chat-x)))] flex-col-reverse gap-2"
+    class="absolute flex w-[min(22rem,calc(100vw-2*var(--gdtd-chat-x)))] flex-col-reverse gap-2 transition-[bottom] duration-200"
     :class="anchorClass"
     :style="anchorVars"
     role="region"

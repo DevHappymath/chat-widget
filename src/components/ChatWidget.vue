@@ -149,6 +149,14 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
 
+      <!-- Thẻ báo tin mới vẫn hiện ở cuối trang: nó tự tắt sau vài giây nên không che lâu. -->
+      <MessageAlerts
+        v-if="!isPanelOpen"
+        :side="isLeft ? 'left' : 'right'"
+        :stacked-heads="minimizedConversations.length"
+        :launcher-hidden="isLauncherHidden"
+      />
+
       <!-- `invisible` để phần đang ẩn không còn nhận click, đè lên chân trang của site. -->
       <div
         class="absolute inset-0 transition-[opacity,translate,visibility] duration-200"
@@ -157,12 +165,6 @@ onBeforeUnmount(() => {
       >
         <!-- Màn hẹp thì panel phủ kín, avatar nổi lên trên chỉ che mất ô nhập tin. -->
         <MinimizedChats :side="isLeft ? 'left' : 'right'" :class="isPanelOpen && 'max-sm:hidden'" />
-
-        <MessageAlerts
-          v-if="!isPanelOpen"
-          :side="isLeft ? 'left' : 'right'"
-          :stacked-heads="minimizedConversations.length"
-        />
 
         <button
           type="button"
