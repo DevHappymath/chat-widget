@@ -36,6 +36,7 @@ const {
   markRead,
   isThreadAtBottom,
   minimizedConversations,
+  syncMinimized,
 } = useChatStore();
 
 const isWide = useIsWideViewport();
@@ -99,6 +100,7 @@ const onVisibilityChange = () => {
   if (document.visibilityState !== "visible") return;
 
   refreshBadge();
+  syncMinimized();
   if (
     isPanelOpen.value &&
     view.value === "thread" &&
@@ -109,6 +111,9 @@ const onVisibilityChange = () => {
   }
 };
 
+// Hai cửa sổ đặt cạnh nhau thì chuyển qua lại không đổi visibility, chỉ có focus.
+const onWindowFocus = () => syncMinimized();
+
 onMounted(() => {
   init();
   if (props.config.tabIndicator !== false) {
@@ -117,11 +122,13 @@ onMounted(() => {
   }
   window.addEventListener("keydown", onKeydown);
   document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("focus", onWindowFocus);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeydown);
   document.removeEventListener("visibilitychange", onVisibilityChange);
+  window.removeEventListener("focus", onWindowFocus);
   stopTabAttention();
 });
 </script>

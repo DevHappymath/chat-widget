@@ -1,4 +1,4 @@
-import { computed, nextTick, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import {
   FALLBACK_ALLOWED_EXTENSIONS,
   FALLBACK_MAX_ATTACHMENT_SIZE_BYTES,
@@ -44,6 +44,7 @@ import {
 } from "../../utils/chat";
 import { extractErrorMessage } from "../../utils/error";
 import { onHubEvent, onHubReconnected, sendTyping, startHub } from "../hub";
+import { readMinimizedIds, writeMinimizedIds } from "../minimizedSync";
 import { conversationApi, messageApi, userApi, widgetApi } from "../services";
 import { announceTabMessage } from "../tabAttention";
 import { useMessageAlerts } from "./useMessageAlerts";
@@ -218,6 +219,8 @@ const fetchedConversations = new Map<string, Promise<ChatConversation | null>>()
 const dissolvingIds = new Set<string>();
 
 let isSubscribed = false;
+/** Lấy lại tab vừa bắn cả focus lẫn visibilitychange, chỉ cần đồng bộ một lượt. */
+let minimizedSyncing: Promise<void> | null = null;
 let badgeTimer: ReturnType<typeof setTimeout> | null = null;
 let typingSentAt = 0;
 
@@ -1715,6 +1718,12 @@ export const useChatStore = () => {
 
       if (!res.data.data.canUseChat) return;
 
+      watch(
+        () => minimizedSnapshots.value.map((c) => c.id),
+        (ids) => writeMinimizedIds(currentUserId.value, ids),
+      );
+      void syncMinimized();
+
       subscribe();
       await startHub(res.data.data.hubPath);
       presence.start(currentUserId.value);
@@ -1791,6 +1800,42 @@ export const useChatStore = () => {
     backToList();
   };
 
+  const pullMinimizedFromOtherSites = async () => {
+    const ids = readMinimizedIds(currentUserId.value);
+    if (!ids) return;
+    if (ids.join(",") === minimizedSnapshots.value.map((c) => c.id).join(",")) return;
+
+    // Có nạp danh sách thì avatar mới có số chưa đọc chạy theo tin đến như lúc tự thu nhỏ.
+    if (ids.length && !conversationsLoaded.value) await loadConversations();
+
+    const snapshots = await Promise.all(
+      ids.map(
+        async (id) =>
+          findConversation(id) ??
+          minimizedSnapshots.value.find((c) => c.id === id) ??
+          // Ngoài 50 hội thoại gần nhất thì hỏi riêng; đã rời nhóm thì bỏ khỏi dãy.
+          (await conversationApi
+            .getById(id)
+            .then((res) => res.data.data)
+            .catch(() => null)),
+      ),
+    );
+
+    minimizedSnapshots.value = snapshots.filter((c): c is ChatConversation => Boolean(c));
+  };
+
+  /**
+   * Lấy dãy hội thoại thu nhỏ mà site khác cùng tên miền vừa lưu, gọi khi widget khởi động và
+   * mỗi lần người dùng quay lại tab.
+   */
+  const syncMinimized = () => {
+    if (!canUseChat.value) return Promise.resolve();
+    minimizedSyncing ??= pullMinimizedFromOtherSites().finally(() => {
+      minimizedSyncing = null;
+    });
+    return minimizedSyncing;
+  };
+
   /** Bấm lại avatar của hội thoại đang mở thì gập nó xuống, giống bấm bong bóng. */
   const restoreMinimized = async (conversationId: string) => {
     if (isPanelOpen.value && activeConversationId.value === conversationId) {
@@ -1837,6 +1882,7 @@ export const useChatStore = () => {
     closeConversation,
     restoreMinimized,
     dismissMinimized,
+    syncMinimized,
     goBack,
     // dữ liệu
     conversations,
