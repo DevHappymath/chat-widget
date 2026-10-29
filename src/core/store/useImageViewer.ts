@@ -7,6 +7,8 @@ export interface ViewerImage {
   thumbnailUrl?: string | null;
   fileName: string;
   messageId: string;
+  /** Kho media chỉ mở ở khung chính nên bỏ trống; ảnh trong tin thì có thể ở khung thứ hai. */
+  conversationId?: string;
   senderName: string;
   createdAtUtc: string;
 }
@@ -30,6 +32,7 @@ export const imagesFromMessages = (
           thumbnailUrl: file.thumbnailUrl,
           fileName: file.fileName,
           messageId: m.id,
+          conversationId: m.conversationId,
           senderName: nameOf(m),
           createdAtUtc: m.createdAtUtc,
         })),

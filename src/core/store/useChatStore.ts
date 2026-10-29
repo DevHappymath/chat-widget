@@ -47,6 +47,7 @@ import { onHubEvent, onHubReconnected, sendTyping, startHub } from "../hub";
 import { readMinimizedIds, writeMinimizedIds } from "../minimizedSync";
 import { conversationApi, messageApi, userApi, widgetApi } from "../services";
 import { announceTabMessage } from "../tabAttention";
+import { useFitsTwoWindows } from "../viewport";
 import { useMessageAlerts } from "./useMessageAlerts";
 import { usePresence } from "./usePresence";
 import { useStickers } from "./useStickers";
@@ -82,12 +83,6 @@ const MAX_REVEAL_PAGES = 5;
 
 /** Gộp các event dồn dập vào một lần gọi bootstrap để nắn lại số trên bong bóng. */
 const BADGE_REFRESH_DELAY_MS = 4000;
-
-/** Vạch "Tin chưa đọc" đặt ngay trước tin đầu tiên của người khác có sequence lớn hơn mốc này. */
-export interface UnreadMarker {
-  conversationId: string;
-  afterSequence: number;
-}
 
 interface TypingEntry {
   conversationId: string;
@@ -156,31 +151,42 @@ const pendingClientIds = ref<string[]>([]);
 const failedClientIds = ref<string[]>([]);
 const typingEntries = ref<TypingEntry[]>([]);
 
+/** Hội thoại ở khung chính, khung nằm sát bong bóng và chứa cả danh sách lẫn các màn phụ. */
 const activeConversationId = ref<string | null>(null);
+/**
+ * Hội thoại ở khung thứ hai, đứng bên trái khung chính; chỉ có khi màn hình đủ rộng. Khung này
+ * chỉ để đọc và nhắn, muốn xem thông tin hay tìm tin thì hội thoại đổi chỗ sang khung chính.
+ */
+const sideConversationId = ref<string | null>(null);
 const draft = ref<DraftConversation | null>(null);
 const isSavingAvatar = ref(false);
-const replyingTo = ref<ChatMessage | null>(null);
+/** Tin đang được trả lời, theo hội thoại: hai khung mở cùng lúc thì mỗi ô nhập có tin riêng. */
+const replyingByConversation = ref<Record<string, ChatMessage>>({});
 const editingMessageId = ref<string | null>(null);
+const editingConversationId = ref<string | null>(null);
 const editingContent = ref("");
 const actionSheetMessage = ref<ChatMessage | null>(null);
 const actionSheetAnchor = ref<MessageActionAnchor | null>(null);
 /** Bảng thao tác đang hiện bảng biểu tượng đầy đủ thay cho danh sách thao tác. */
 const actionSheetShowsEmojiPicker = ref(false);
 const highlightedMessageId = ref<string | null>(null);
-const unreadMarker = ref<UnreadMarker | null>(null);
-/** Khung chat đang cuộn sát đáy, tức người dùng đang thấy tin mới nhất. */
-const isThreadAtBottom = ref(true);
+/**
+ * Vạch "Tin chưa đọc" theo hội thoại: đặt ngay trước tin đầu tiên của người khác có sequence lớn
+ * hơn mốc lưu ở đây.
+ */
+const unreadMarkers = ref<Record<string, number>>({});
+/** Khung chat của hội thoại đang cuộn sát đáy, tức người dùng đang thấy tin mới nhất. */
+const atBottomByConversation = ref<Record<string, boolean>>({});
 /**
  * Lần dựng khung chat kế tiếp phải dừng ở vạch tin chưa đọc thay vì xuống đáy. Chỉ bật khi mở
  * hội thoại từ ngoài vào, quay lại từ màn thông tin hay tìm kiếm thì vẫn xuống đáy như cũ.
  */
-const shouldRevealUnread = ref(false);
+const revealUnreadByConversation = ref<Record<string, boolean>>({});
 
 const filter = ref<ConversationFilter>("all");
 const keyword = ref("");
 
 const pinnedByConversation = ref<Record<string, ChatMessage[]>>({});
-const isPinnedBarExpanded = ref(false);
 
 const messageSearchKeyword = ref("");
 const messageSearchResults = ref<ChatMessage[]>([]);
@@ -205,7 +211,7 @@ const view = ref<WidgetView>("list");
 const minimizedSnapshots = ref<ChatConversation[]>([]);
 
 const isLoadingConversations = ref(false);
-const isLoadingMessages = ref(false);
+const loadingMessagesByConversation = ref<Record<string, boolean>>({});
 
 /** Số hội thoại chưa đọc theo bootstrap, dùng khi người dùng chưa mở panel lần nào. */
 const unreadFallback = ref(0);
@@ -222,7 +228,8 @@ let isSubscribed = false;
 /** Lấy lại tab vừa bắn cả focus lẫn visibilitychange, chỉ cần đồng bộ một lượt. */
 let minimizedSyncing: Promise<void> | null = null;
 let badgeTimer: ReturnType<typeof setTimeout> | null = null;
-let typingSentAt = 0;
+/** Lần cuối báo đang soạn, theo hội thoại: gõ ở khung này không được chặn tín hiệu của khung kia. */
+const typingSentAt = new Map<string, number>();
 
 /**
  * State chat của widget: bootstrap, danh sách hội thoại, lịch sử tin nhắn và các event
@@ -232,6 +239,7 @@ export const useChatStore = () => {
   const toast = useWidgetToast();
   const presence = usePresence();
   const messageAlerts = useMessageAlerts();
+  const fitsTwoWindows = useFitsTwoWindows();
 
   const currentUserId = computed(() =>
     (bootstrap.value?.user?.id ?? "").toLowerCase(),
@@ -364,34 +372,31 @@ export const useChatStore = () => {
     () => conversations.value.find((c) => c.id === activeConversationId.value) ?? null,
   );
 
-  const activeMessages = computed(() =>
-    activeConversationId.value
-      ? (messagesByConversation.value[activeConversationId.value] ?? [])
-      : [],
+  const sideConversation = computed(() =>
+    sideConversationId.value ? (findConversation(sideConversationId.value) ?? null) : null,
   );
 
-  const myParticipant = computed(
-    () =>
-      activeConversation.value?.participants.find(
-        (p) => p.userId.toLowerCase() === currentUserId.value,
-      ) ?? null,
-  );
+  const messagesOf = (conversationId: string | null) =>
+    conversationId ? (messagesByConversation.value[conversationId] ?? []) : [];
 
-  const myGroupRole = computed(() =>
-    activeConversation.value && isGroup(activeConversation.value)
-      ? (myParticipant.value?.role ?? null)
-      : null,
-  );
-
-  /** Chỉ trưởng nhóm bổ nhiệm phó nhóm, chuyển chức và giải tán được nhóm. */
-  const isGroupLeader = computed(() => myGroupRole.value === ParticipantRole.Admin);
+  const myGroupRoleIn = (conversation: ChatConversation | null | undefined) =>
+    conversation && isGroup(conversation)
+      ? (conversation.participants.find((p) => p.userId.toLowerCase() === currentUserId.value)
+          ?.role ?? null)
+      : null;
 
   /** Trưởng hoặc phó nhóm; hội thoại 1-1 không có vai trò này. */
-  const canManageGroup = computed(
-    () =>
-      myGroupRole.value === ParticipantRole.Admin ||
-      myGroupRole.value === ParticipantRole.Deputy,
+  const canManage = (conversation: ChatConversation | null | undefined) => {
+    const role = myGroupRoleIn(conversation);
+    return role === ParticipantRole.Admin || role === ParticipantRole.Deputy;
+  };
+
+  /** Chỉ trưởng nhóm bổ nhiệm phó nhóm, chuyển chức và giải tán được nhóm. */
+  const isGroupLeader = computed(
+    () => myGroupRoleIn(activeConversation.value) === ParticipantRole.Admin,
   );
+
+  const canManageGroup = computed(() => canManage(activeConversation.value));
 
   /** Phó nhóm chỉ xoá được thành viên thường; không ai tự xoá mình, muốn ra thì rời nhóm. */
   const canRemoveMember = (member: ChatParticipant) =>
@@ -419,13 +424,13 @@ export const useChatStore = () => {
     !message.isDeleted &&
     message.type !== MessageType.System &&
     !isLocalMessage(message) &&
-    (isOwnMessage(message) || canManageGroup.value);
+    (isOwnMessage(message) || canManage(findConversation(message.conversationId)));
 
-  const hasMoreMessages = computed(() =>
-    activeConversationId.value
-      ? (hasMoreByConversation.value[activeConversationId.value] ?? false)
-      : false,
-  );
+  const hasMoreOf = (conversationId: string | null) =>
+    conversationId ? (hasMoreByConversation.value[conversationId] ?? false) : false;
+
+  const isLoadingMessagesOf = (conversationId: string | null) =>
+    conversationId ? (loadingMessagesByConversation.value[conversationId] ?? false) : false;
 
   /** Mọi thành viên còn hoạt động đều ghim và gỡ được, kể cả tin của người khác. */
   const canPinMessage = (message: ChatMessage) =>
@@ -435,16 +440,40 @@ export const useChatStore = () => {
 
   const canForwardMessage = canPinMessage;
 
-  const pinnedMessages = computed(() =>
-    activeConversationId.value
-      ? (pinnedByConversation.value[activeConversationId.value] ?? [])
-      : [],
-  );
+  const pinnedOf = (conversationId: string | null) =>
+    conversationId ? (pinnedByConversation.value[conversationId] ?? []) : [];
 
   const isPinned = (message: ChatMessage) => Boolean(message.pinnedAtUtc);
 
+  /** Hội thoại đang chiếm một trong hai khung, kể cả khi khung chính đang ở màn thông tin. */
+  const isOpenInWindow = (conversationId: string) =>
+    activeConversationId.value === conversationId || sideConversationId.value === conversationId;
+
   /** Panel đóng thì tin mới vẫn phải tính là chưa đọc, dù hội thoại đó đang được chọn. */
-  const isThreadVisible = computed(() => isPanelOpen.value && view.value === "thread");
+  const isThreadVisible = (conversationId: string) =>
+    isPanelOpen.value &&
+    ((view.value === "thread" && activeConversationId.value === conversationId) ||
+      sideConversationId.value === conversationId);
+
+  const isAtBottom = (conversationId: string | null) =>
+    conversationId ? (atBottomByConversation.value[conversationId] ?? true) : true;
+
+  const setThreadAtBottom = (conversationId: string, atBottom: boolean) => {
+    atBottomByConversation.value[conversationId] = atBottom;
+  };
+
+  const unreadMarkerOf = (conversationId: string | null) =>
+    conversationId ? (unreadMarkers.value[conversationId] ?? null) : null;
+
+  /** Đọc rồi xoá cờ, để chỉ lần dựng đầu tiên dừng ở vạch tin chưa đọc. */
+  const takeRevealUnread = (conversationId: string) => {
+    const reveal = revealUnreadByConversation.value[conversationId] ?? false;
+    delete revealUnreadByConversation.value[conversationId];
+    return reveal;
+  };
+
+  const replyingToOf = (conversationId: string | null) =>
+    conversationId ? (replyingByConversation.value[conversationId] ?? null) : null;
 
   const badgeCount = computed(() =>
     conversationsLoaded.value
@@ -471,15 +500,14 @@ export const useChatStore = () => {
       .map((e) => e.userId);
   };
 
-  const activeTypingNames = computed(() => {
-    const conversation = activeConversation.value;
+  const typingNamesOf = (conversation: ChatConversation | null) => {
     if (!conversation) return [];
 
     const typingIds = new Set(typingUserIdsOf(conversation.id));
     return conversation.participants
       .filter((p) => typingIds.has(p.userId.toLowerCase()))
       .map((p) => p.fullName || p.email || "Ai đó");
-  });
+  };
 
   // ─── Badge ──────────────────────────────────────────────────────────────────
 
@@ -530,6 +558,10 @@ export const useChatStore = () => {
     conversations.value = conversations.value.filter((c) => c.id !== conversationId);
     minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
     delete messagesByConversation.value[conversationId];
+    delete replyingByConversation.value[conversationId];
+    delete unreadMarkers.value[conversationId];
+
+    if (sideConversationId.value === conversationId) sideConversationId.value = null;
 
     if (activeConversationId.value === conversationId) {
       activeConversationId.value = null;
@@ -636,16 +668,10 @@ export const useChatStore = () => {
     // Tab của site ẩn hoặc đang cuộn lên đọc tin cũ thì chưa thấy tin mới, kể cả khi panel mở
     // đúng hội thoại.
     const isWatching =
-      isThreadVisible.value &&
-      activeConversationId.value === conversation.id &&
-      document.visibilityState === "visible";
-    const isReading = isWatching && isThreadAtBottom.value;
+      isThreadVisible(conversation.id) && document.visibilityState === "visible";
+    const isReading = isWatching && isAtBottom(conversation.id);
 
-    if (
-      activeConversationId.value === conversation.id &&
-      !isReading &&
-      !isOwnMessage(message)
-    ) {
+    if (isOpenInWindow(conversation.id) && !isReading && !isOwnMessage(message)) {
       markUnreadFrom(conversation);
     }
 
@@ -685,18 +711,10 @@ export const useChatStore = () => {
    * thì dời xuống loạt mới, còn đang dở thì giữ để không mất chỗ bắt đầu đọc.
    */
   const markUnreadFrom = (conversation: ChatConversation) => {
-    const marker = unreadMarker.value;
-    if (
-      marker?.conversationId === conversation.id &&
-      marker.afterSequence >= conversation.lastReadSequence
-    ) {
-      return;
-    }
+    const marker = unreadMarkers.value[conversation.id];
+    if (marker !== undefined && marker >= conversation.lastReadSequence) return;
 
-    unreadMarker.value = {
-      conversationId: conversation.id,
-      afterSequence: conversation.lastReadSequence,
-    };
+    unreadMarkers.value[conversation.id] = conversation.lastReadSequence;
   };
 
   /**
@@ -768,7 +786,7 @@ export const useChatStore = () => {
     beforeSequence?: number,
     limit = PAGE_SIZE,
   ) => {
-    isLoadingMessages.value = true;
+    loadingMessagesByConversation.value[conversationId] = true;
     try {
       const res = await messageApi.getHistory(conversationId, {
         beforeSequence,
@@ -787,13 +805,12 @@ export const useChatStore = () => {
     } catch (err) {
       toast.error(extractErrorMessage(err));
     } finally {
-      isLoadingMessages.value = false;
+      delete loadingMessagesByConversation.value[conversationId];
     }
   };
 
-  const loadOlderMessages = async () => {
-    const conversationId = activeConversationId.value;
-    if (!conversationId || !hasMoreMessages.value || isLoadingMessages.value) return;
+  const loadOlderMessages = async (conversationId: string) => {
+    if (!hasMoreOf(conversationId) || isLoadingMessagesOf(conversationId)) return;
 
     const oldest = messagesByConversation.value[conversationId]?.[0]?.sequence;
     if (oldest) await loadMessages(conversationId, oldest);
@@ -829,28 +846,58 @@ export const useChatStore = () => {
 
   // ─── Điều hướng trong panel ─────────────────────────────────────────────────
 
+  /**
+   * Hội thoại đang ở khung chính nhường chỗ cho hội thoại sắp mở: lùi sang khung thứ hai nếu đủ
+   * chỗ, khung thứ hai có sẵn hội thoại khác thì cái đó thu thành avatar.
+   */
+  const makeRoomInMain = (incomingId: string) => {
+    const current = activeConversation.value;
+    if (!isPanelOpen.value || !current || current.id === incomingId) return;
+
+    if (!fitsTwoWindows.value) {
+      keepMinimized(current);
+      return;
+    }
+
+    const side = sideConversation.value;
+    if (side && side.id !== incomingId) leaveSide(side.id, { minimize: true });
+    sideConversationId.value = current.id;
+  };
+
+  /** Mở hội thoại ở khung chính; đang nằm ở khung thứ hai thì hai khung đổi chỗ cho nhau. */
   const selectConversation = async (id: string) => {
+    const wasOpen = isOpenInWindow(id);
+
+    makeRoomInMain(id);
+    if (sideConversationId.value === id) sideConversationId.value = null;
+    // Đang hiện thành khung thì không còn là avatar thu nhỏ nữa.
+    dismissMinimized(id);
+
     draft.value = null;
-    cancelEditMessage();
-    cancelReply();
     resetMessageSearch();
     resetMedia();
     activeConversationId.value = id;
     view.value = "thread";
-    isPinnedBarExpanded.value = false;
     messageAlerts.dismiss(id);
+
+    // Dời từ khung thứ hai sang thì lịch sử, vạch chưa đọc và tin đang trả lời vẫn còn nguyên.
+    if (wasOpen) {
+      await markRead(id);
+      return;
+    }
+
+    cancelEditMessage(id);
+    cancelReply(id);
 
     // Chốt mốc trước markRead, vì markRead đẩy lastReadSequence lên ngay.
     const conversation = findConversation(id);
     const unread = conversation
       ? conversation.lastSequence - conversation.lastReadSequence
       : 0;
-    unreadMarker.value =
-      conversation && unread > 0
-        ? { conversationId: id, afterSequence: conversation.lastReadSequence }
-        : null;
-    isThreadAtBottom.value = true;
-    shouldRevealUnread.value = true;
+    if (conversation && unread > 0) unreadMarkers.value[id] = conversation.lastReadSequence;
+    else delete unreadMarkers.value[id];
+    atBottomByConversation.value[id] = true;
+    revealUnreadByConversation.value[id] = true;
 
     if (!messagesByConversation.value[id]) {
       // Tải dư thêm một trang để vạch tin chưa đọc có tin cũ phía trên làm ngữ cảnh.
@@ -861,11 +908,15 @@ export const useChatStore = () => {
   };
 
   const backToList = () => {
+    const conversationId = activeConversationId.value;
+
     view.value = "list";
     activeConversationId.value = null;
     draft.value = null;
-    cancelReply();
-    cancelEditMessage();
+    if (conversationId) {
+      cancelReply(conversationId);
+      cancelEditMessage(conversationId);
+    }
   };
 
   const goBack = () => {
@@ -927,13 +978,16 @@ export const useChatStore = () => {
 
     draft.value = null;
     activeConversationId.value = created.id;
+    if (sideConversationId.value === created.id) sideConversationId.value = null;
 
     return findConversation(created.id) ?? null;
   };
 
   // ─── Hành động ──────────────────────────────────────────────────────────────
 
+  /** `conversationId` null là gửi từ bản nháp ở khung chính. */
   const sendMessage = (
+    conversationId: string | null,
     content: string,
     attachments: UploadedFile[] = [],
     mentionedUserIds: string[] = [],
@@ -942,29 +996,44 @@ export const useChatStore = () => {
     const body = content.trim();
     if (!body && !attachments.length) return Promise.resolve();
 
-    return postMessage({ body, attachments, mentionedUserIds, mentionEveryone, sticker: null });
+    return postMessage(conversationId, {
+      body,
+      attachments,
+      mentionedUserIds,
+      mentionEveryone,
+      sticker: null,
+    });
   };
 
-  const sendSticker = (sticker: Sticker) =>
-    postMessage({ body: "", attachments: [], mentionedUserIds: [], mentionEveryone: false, sticker });
+  const sendSticker = (conversationId: string | null, sticker: Sticker) =>
+    postMessage(conversationId, {
+      body: "",
+      attachments: [],
+      mentionedUserIds: [],
+      mentionEveryone: false,
+      sticker,
+    });
 
-  const postMessage = async ({
-    body,
-    attachments,
-    mentionedUserIds,
-    mentionEveryone,
-    sticker,
-  }: {
-    body: string;
-    attachments: UploadedFile[];
-    mentionedUserIds: string[];
-    mentionEveryone: boolean;
-    sticker: Sticker | null;
-  }) => {
-    let conversation = activeConversation.value;
+  const postMessage = async (
+    targetId: string | null,
+    {
+      body,
+      attachments,
+      mentionedUserIds,
+      mentionEveryone,
+      sticker,
+    }: {
+      body: string;
+      attachments: UploadedFile[];
+      mentionedUserIds: string[];
+      mentionEveryone: boolean;
+      sticker: Sticker | null;
+    },
+  ) => {
+    let conversation = targetId ? (findConversation(targetId) ?? null) : null;
 
     // Đang ở bản nháp: tạo hội thoại rồi mới gửi, người dùng chỉ thấy một hành động.
-    if (!conversation && draft.value) {
+    if (!conversation && !targetId && draft.value) {
       try {
         conversation = await materializeDraft();
       } catch (err) {
@@ -977,6 +1046,7 @@ export const useChatStore = () => {
 
     const clientMessageId = crypto.randomUUID();
     const conversationId = conversation.id;
+    const replyingTo = replyingToOf(conversationId);
 
     const optimistic: ChatMessage = {
       id: clientMessageId,
@@ -989,7 +1059,7 @@ export const useChatStore = () => {
       content: body,
       clientMessageId,
       sticker,
-      replyTo: replyingTo.value ? toMessageSummary(replyingTo.value) : null,
+      replyTo: replyingTo ? toMessageSummary(replyingTo) : null,
       // Giữ nguyên kích thước và thumbnail của lượt upload, nếu không bong bóng lạc quan
       // không có khung ảnh rồi giật một nhịp khi tin thật về.
       attachments: attachments.map((file, index) => ({
@@ -1009,14 +1079,14 @@ export const useChatStore = () => {
       createdAtUtc: new Date().toISOString(),
     };
 
-    const replyToMessageId = replyingTo.value?.id ?? null;
-    replyingTo.value = null;
+    const replyToMessageId = replyingTo?.id ?? null;
+    cancelReply(conversationId);
 
     upsertMessage(optimistic);
     pendingClientIds.value = [...pendingClientIds.value, clientMessageId];
 
     // Đã trả lời thì coi như đọc xong phần chưa đọc, vạch chỉ còn làm rối.
-    if (unreadMarker.value?.conversationId === conversationId) unreadMarker.value = null;
+    delete unreadMarkers.value[conversationId];
 
     // Đẩy hội thoại lên đầu ngay, không chờ server. Cố tình không đụng lastSequence: sequence
     // của bản lạc quan là số bịa, ghi vào sẽ chặn mất tin thật khi nó về.
@@ -1268,7 +1338,12 @@ export const useChatStore = () => {
 
   // ─── Chuyển tiếp tin nhắn ───────────────────────────────────────────────────
 
-  const openForward = (message: ChatMessage) => {
+  /** Màn chuyển tiếp chỉ có ở khung chính, tin ở khung thứ hai thì hội thoại đổi chỗ sang trước. */
+  const openForward = async (message: ChatMessage) => {
+    if (activeConversationId.value !== message.conversationId) {
+      await selectConversation(message.conversationId);
+    }
+
     forwardingMessage.value = message;
     view.value = "forward";
   };
@@ -1418,10 +1493,11 @@ export const useChatStore = () => {
    * tải thì kéo lùi lịch sử tối đa `MAX_REVEAL_PAGES` trang rồi mới cuộn tới.
    */
   const revealMessage = async (conversationId: string, messageId: string) => {
-    if (activeConversationId.value !== conversationId) {
-      await selectConversation(conversationId);
-    } else {
+    // Đang mở ở khung thứ hai thì cuộn ngay tại đó, không kéo hội thoại sang khung chính.
+    if (activeConversationId.value === conversationId) {
       view.value = "thread";
+    } else if (sideConversationId.value !== conversationId) {
+      await selectConversation(conversationId);
     }
 
     const isLoaded = () =>
@@ -1462,12 +1538,12 @@ export const useChatStore = () => {
   };
 
   const startReply = (message: ChatMessage) => {
-    replyingTo.value = message;
-    cancelEditMessage();
+    replyingByConversation.value[message.conversationId] = message;
+    cancelEditMessage(message.conversationId);
   };
 
-  function cancelReply() {
-    replyingTo.value = null;
+  function cancelReply(conversationId: string) {
+    delete replyingByConversation.value[conversationId];
   }
 
   const findMessage = (conversationId: string, messageId: string) =>
@@ -1548,11 +1624,16 @@ export const useChatStore = () => {
 
   const startEditMessage = (message: ChatMessage) => {
     editingMessageId.value = message.id;
+    editingConversationId.value = message.conversationId;
     editingContent.value = message.content ?? "";
   };
 
-  function cancelEditMessage() {
+  /** Truyền `conversationId` thì chỉ huỷ khi tin đang sửa thuộc hội thoại đó, khung kia giữ nguyên. */
+  function cancelEditMessage(conversationId?: string) {
+    if (conversationId && editingConversationId.value !== conversationId) return;
+
     editingMessageId.value = null;
+    editingConversationId.value = null;
     editingContent.value = "";
   }
 
@@ -1571,14 +1652,13 @@ export const useChatStore = () => {
   };
 
   /** Gửi tối đa 1 tín hiệu mỗi nửa TTL: đủ để bên kia không thấy nhấp nháy, không spam hub. */
-  const notifyTyping = () => {
-    const conversationId = activeConversationId.value;
+  const notifyTyping = (conversationId: string | null) => {
     if (!conversationId) return;
 
     const now = Date.now();
-    if (now - typingSentAt < TYPING_TTL_MS / 2) return;
+    if (now - (typingSentAt.get(conversationId) ?? 0) < TYPING_TTL_MS / 2) return;
 
-    typingSentAt = now;
+    typingSentAt.set(conversationId, now);
     sendTyping(conversationId, true);
   };
 
@@ -1691,9 +1771,10 @@ export const useChatStore = () => {
     onHubReconnected(async () => {
       await refreshBadge();
       if (conversationsLoaded.value) await loadConversations();
-      if (activeConversationId.value) {
-        await loadMessages(activeConversationId.value);
-        await loadPinnedMessages(activeConversationId.value);
+      for (const conversationId of [activeConversationId.value, sideConversationId.value]) {
+        if (!conversationId) continue;
+        await loadMessages(conversationId);
+        await loadPinnedMessages(conversationId);
       }
     });
   };
@@ -1724,6 +1805,11 @@ export const useChatStore = () => {
       );
       void syncMinimized();
 
+      // Thu hẹp cửa sổ trình duyệt thì khung thứ hai không còn chỗ, gập nó thành avatar.
+      watch(fitsTwoWindows, (fits) => {
+        if (!fits && sideConversationId.value) minimizeSide();
+      });
+
       subscribe();
       await startHub(res.data.data.hubPath);
       presence.start(currentUserId.value);
@@ -1744,7 +1830,7 @@ export const useChatStore = () => {
     if (view.value === "thread" && activeConversationId.value) {
       const conversation = findConversation(activeConversationId.value);
       if (conversation && conversation.lastSequence > conversation.lastReadSequence) {
-        shouldRevealUnread.value = true;
+        revealUnreadByConversation.value[conversation.id] = true;
       }
       await markRead(activeConversationId.value);
     }
@@ -1756,7 +1842,7 @@ export const useChatStore = () => {
   };
 
   const togglePanel = () => {
-    if (isPanelOpen.value) minimizeConversation();
+    if (isPanelOpen.value) collapseAll();
     else openPanel();
   };
 
@@ -1776,8 +1862,61 @@ export const useChatStore = () => {
     );
   };
 
-  /** Gập panel về bong bóng; đang mở hội thoại nào thì hội thoại đó thành avatar thu nhỏ. */
+  const dismissMinimized = (conversationId: string) => {
+    minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
+  };
+
+  /** Hội thoại rời khung thứ hai; `minimize` thì để lại avatar, không thì đóng hẳn. */
+  function leaveSide(conversationId: string, { minimize }: { minimize: boolean }) {
+    const conversation = findConversation(conversationId);
+    if (minimize && conversation) keepMinimized(conversation);
+
+    if (sideConversationId.value === conversationId) sideConversationId.value = null;
+    cancelReply(conversationId);
+    cancelEditMessage(conversationId);
+  }
+
+  const minimizeSide = () => {
+    if (sideConversationId.value) leaveSide(sideConversationId.value, { minimize: true });
+  };
+
+  const closeSide = () => {
+    if (sideConversationId.value) leaveSide(sideConversationId.value, { minimize: false });
+  };
+
+  /** Khung chính vừa trống: hội thoại ở khung thứ hai dời sang thế chỗ, không có thì gập panel. */
+  const vacateMain = () => {
+    const sideId = sideConversationId.value;
+    const hadConversation = Boolean(activeConversationId.value);
+
+    if (hadConversation || sideId) backToList();
+    if (sideId) {
+      void selectConversation(sideId);
+      return;
+    }
+
+    closePanel();
+  };
+
+  /** Thu hội thoại ở khung chính thành avatar; khung thứ hai còn hội thoại thì nó dời sang. */
   const minimizeConversation = () => {
+    if (activeConversation.value) keepMinimized(activeConversation.value);
+    vacateMain();
+  };
+
+  /** Đóng hẳn khung chính: hội thoại đang mở không để lại avatar. */
+  const closeConversation = () => {
+    if (activeConversationId.value) dismissMinimized(activeConversationId.value);
+    vacateMain();
+  };
+
+  /**
+   * Gập cả panel về bong bóng, mọi hội thoại đang mở thành avatar. Khung chính thu sau cùng để
+   * avatar của nó nằm sát bong bóng nhất.
+   */
+  const collapseAll = () => {
+    minimizeSide();
+
     const conversation = activeConversation.value;
     closePanel();
     if (!conversation) return;
@@ -1786,22 +1925,9 @@ export const useChatStore = () => {
     backToList();
   };
 
-  const dismissMinimized = (conversationId: string) => {
-    minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
-  };
-
-  /** Đóng hẳn: hội thoại đang mở cũng rời khỏi dãy avatar thu nhỏ. */
-  const closeConversation = () => {
-    const conversationId = activeConversationId.value;
-    closePanel();
-    if (!conversationId) return;
-
-    dismissMinimized(conversationId);
-    backToList();
-  };
-
   const pullMinimizedFromOtherSites = async () => {
-    const ids = readMinimizedIds(currentUserId.value);
+    // Hội thoại site khác thu nhỏ mà ở đây đang mở thành khung thì không thêm avatar trùng.
+    const ids = readMinimizedIds(currentUserId.value)?.filter((id) => !isOpenInWindow(id));
     if (!ids) return;
     if (ids.join(",") === minimizedSnapshots.value.map((c) => c.id).join(",")) return;
 
@@ -1836,15 +1962,9 @@ export const useChatStore = () => {
     return minimizedSyncing;
   };
 
-  /** Bấm lại avatar của hội thoại đang mở thì gập nó xuống, giống bấm bong bóng. */
+  /** Mở lại ở khung chính; hội thoại đang ở đó lùi sang khung thứ hai thay vì thành avatar. */
   const restoreMinimized = async (conversationId: string) => {
-    if (isPanelOpen.value && activeConversationId.value === conversationId) {
-      minimizeConversation();
-      return;
-    }
-
-    if (activeConversation.value) keepMinimized(activeConversation.value);
-    await openPanel();
+    if (!isPanelOpen.value) await openPanel();
     await selectConversation(conversationId);
   };
 
@@ -1867,9 +1987,10 @@ export const useChatStore = () => {
     saveMyAvatar,
     // panel
     isPanelOpen,
-    unreadMarker,
-    isThreadAtBottom,
-    shouldRevealUnread,
+    unreadMarkerOf,
+    isAtBottom,
+    setThreadAtBottom,
+    takeRevealUnread,
     view,
     badgeCount,
     unreadMessageCount,
@@ -1880,6 +2001,9 @@ export const useChatStore = () => {
     minimizedConversations,
     minimizeConversation,
     closeConversation,
+    collapseAll,
+    minimizeSide,
+    closeSide,
     restoreMinimized,
     dismissMinimized,
     syncMinimized,
@@ -1889,27 +2013,28 @@ export const useChatStore = () => {
     filteredConversations,
     activeConversation,
     activeConversationId,
-    activeMessages,
-    activeTypingNames,
-    hasMoreMessages,
+    sideConversation,
+    sideConversationId,
+    messagesOf,
+    typingNamesOf,
+    hasMoreOf,
     draft,
     filter,
     keyword,
     isLoadingConversations,
-    isLoadingMessages,
+    isLoadingMessagesOf,
     pendingClientIds,
     failedClientIds,
     editingMessageId,
     editingContent,
-    replyingTo,
+    replyingToOf,
     actionSheetMessage,
     actionSheetAnchor,
     actionSheetShowsEmojiPicker,
     highlightedMessageId,
     isGroupLeader,
     canManageGroup,
-    pinnedMessages,
-    isPinnedBarExpanded,
+    pinnedOf,
     messageSearchKeyword,
     messageSearchResults,
     messageSearchHasMore,

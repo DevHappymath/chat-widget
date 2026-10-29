@@ -24,6 +24,7 @@ const {
   view,
   currentUserName,
   activeConversation,
+  activeConversationId,
   isGroup,
   isStudent,
   myPresence,
@@ -166,7 +167,7 @@ const subheading = computed(() => {
     <ForwardScreen v-else-if="view === 'forward'" />
     <MediaScreen v-else-if="view === 'media'" />
     <JoinGroupScreen v-else-if="view === 'join'" />
-    <MessageThread v-else />
+    <MessageThread v-else :conversation-id="activeConversationId" />
 
     <WidgetToaster />
     <ConfirmDialog />

@@ -164,7 +164,7 @@ const download = () => {
 
 const goToMessage = async () => {
   const image = current.value;
-  const conversationId = activeConversationId.value;
+  const conversationId = image?.conversationId ?? activeConversationId.value;
   if (!image || !conversationId) return;
 
   close();

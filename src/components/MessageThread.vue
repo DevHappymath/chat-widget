@@ -2,7 +2,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { MAX_ATTACHMENTS_PER_MESSAGE } from "../constants/attachment";
 import { useChatStore } from "../core/store/useChatStore";
-import { PresenceStatus } from "../types/chat";
+import { PresenceStatus, type Sticker, type UploadedFile } from "../types/chat";
 import { hasDraggedFiles } from "../utils/attachment";
 import { groupChatMessages, presenceLabel } from "../utils/chat";
 import { formatBytes } from "../utils/format";
@@ -13,19 +13,26 @@ import PinnedBar from "./PinnedBar.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
+const props = defineProps<{
+  /** null là bản nháp với người vừa chọn ở danh bạ, chỉ có ở khung chính. */
+  conversationId: string | null;
+  /** Khung thứ hai không có màn tìm kiếm hay thông tin riêng, bấm vào thì đổi chỗ sang khung chính. */
+  secondary?: boolean;
+}>();
+
 const {
   view,
   currentUserId,
-  activeConversation,
-  activeConversationId,
-  activeMessages,
-  activeTypingNames,
-  hasMoreMessages,
-  isLoadingMessages,
-  unreadMarker,
-  isThreadAtBottom,
-  shouldRevealUnread,
-  draft,
+  conversations,
+  messagesOf,
+  typingNamesOf,
+  hasMoreOf,
+  isLoadingMessagesOf,
+  unreadMarkerOf,
+  isAtBottom,
+  setThreadAtBottom,
+  takeRevealUnread,
+  draft: storeDraft,
   isGroup,
   isOnline,
   statusOf,
@@ -40,36 +47,62 @@ const {
   isOwnMessage,
   notifyTyping,
   toggleMute,
+  selectConversation,
   attachmentRule,
 } = useChatStore();
 
 const scroller = ref<HTMLElement | null>(null);
 const composer = ref<InstanceType<typeof MessageComposer> | null>(null);
 
+const conversationId = computed(() => props.conversationId);
+
+const conversation = computed(() =>
+  props.conversationId
+    ? (conversations.value.find((c) => c.id === props.conversationId) ?? null)
+    : null,
+);
+
+const draft = computed(() => (props.conversationId ? null : storeDraft.value));
+
+const messages = computed(() => messagesOf(props.conversationId));
+const hasMoreMessages = computed(() => hasMoreOf(props.conversationId));
+const isLoadingMessages = computed(() => isLoadingMessagesOf(props.conversationId));
+const isThreadAtBottom = computed(() => isAtBottom(props.conversationId));
+
+const openScreen = async (screen: "search" | "info") => {
+  if (props.secondary && props.conversationId) await selectConversation(props.conversationId);
+  view.value = screen;
+};
+
+const send = (...args: [string, UploadedFile[], string[], boolean]) =>
+  sendMessage(props.conversationId, ...args);
+
+const onSendSticker = (sticker: Sticker) => sendSticker(props.conversationId, sticker);
+
 const partner = computed(() =>
-  activeConversation.value ? partnerOf(activeConversation.value) : undefined,
+  conversation.value ? partnerOf(conversation.value) : undefined,
 );
 
 const group = computed(() =>
-  activeConversation.value ? isGroup(activeConversation.value) : false,
+  conversation.value ? isGroup(conversation.value) : false,
 );
 
 /** Header dùng chung cho hội thoại thật và bản nháp, khác nhau ở nguồn tên và avatar. */
 const headerTitle = computed(() =>
-  activeConversation.value
-    ? titleOf(activeConversation.value)
+  conversation.value
+    ? titleOf(conversation.value)
     : (draft.value?.fullName ?? ""),
 );
 
 const headerPartnerId = computed(() => partner.value?.userId ?? draft.value?.userId);
 
 const subtitle = computed(() => {
-  const conversation = activeConversation.value;
+  const current = conversation.value;
 
-  if (!conversation) return draft.value ? "Hội thoại mới, chưa gửi tin nào" : "";
+  if (!current) return draft.value ? "Hội thoại mới, chưa gửi tin nào" : "";
 
   if (group.value) {
-    const members = membersOf(conversation);
+    const members = membersOf(current);
     const online = members.filter((m) => isOnline(m.userId)).length;
     return `${members.length} thành viên · ${online} đang hoạt động`;
   }
@@ -89,20 +122,18 @@ const partnerIsDoNotDisturb = computed(
  * vì không còn phần đã đọc nào để tách.
  */
 const firstUnreadSequence = computed(() => {
-  const marker = unreadMarker.value;
-  if (!marker || marker.conversationId !== activeConversationId.value) return null;
+  const afterSequence = unreadMarkerOf(conversationId.value);
+  if (afterSequence === null) return null;
 
-  const messages = activeMessages.value;
-  const index = messages.findIndex(
-    (m) => m.sequence > marker.afterSequence && !isOwnMessage(m),
-  );
+  const list = messages.value;
+  const index = list.findIndex((m) => m.sequence > afterSequence && !isOwnMessage(m));
   if (index < 0 || (index === 0 && !hasMoreMessages.value)) return null;
 
-  return messages[index].sequence;
+  return list[index].sequence;
 });
 
 const dayGroups = computed(() =>
-  groupChatMessages(activeMessages.value, currentUserId.value, firstUnreadSequence.value),
+  groupChatMessages(messages.value, currentUserId.value, firstUnreadSequence.value),
 );
 
 const lastOwnClusterKey = computed(() => {
@@ -111,7 +142,7 @@ const lastOwnClusterKey = computed(() => {
 });
 
 const typingLabel = computed(() => {
-  const names = activeTypingNames.value;
+  const names = typingNamesOf(conversation.value);
   if (!names.length) return "";
   if (names.length === 1) return `${names[0]} đang soạn tin...`;
   return `${names.length} người đang soạn tin...`;
@@ -125,7 +156,7 @@ const UNREAD_DIVIDER_OFFSET_PX = 40;
 
 /** Tin mới đến trong lúc đang cuộn lên; cuộn xuống đáy là đã đọc nên số này về 0. */
 const newMessageCount = computed(() =>
-  isThreadAtBottom.value ? 0 : (activeConversation.value?.unreadCount ?? 0),
+  isThreadAtBottom.value ? 0 : (conversation.value?.unreadCount ?? 0),
 );
 
 const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
@@ -138,9 +169,9 @@ const isNearBottom = (el: HTMLElement) =>
 
 /** Xuống tới tin cuối là đã đọc hết, kể cả loạt tin về trong lúc đang cuộn lên. */
 const setAtBottom = (atBottom: boolean) => {
-  isThreadAtBottom.value = atBottom;
-  if (atBottom && activeConversationId.value && document.visibilityState === "visible") {
-    markRead(activeConversationId.value);
+  if (conversationId.value) setThreadAtBottom(conversationId.value, atBottom);
+  if (atBottom && conversationId.value && document.visibilityState === "visible") {
+    markRead(conversationId.value);
   }
 };
 
@@ -177,20 +208,19 @@ let positionedConversationId: string | null = null;
 // Chỉ theo tin cuối: tải thêm tin cũ ở phía trên không được kéo người đọc xuống đáy.
 // Chờ render xong bong bóng mới rồi mới cuộn, nếu không scrollHeight vẫn là giá trị cũ.
 watch(
-  [() => activeConversationId.value, () => activeMessages.value.at(-1)?.id],
+  [() => conversationId.value, () => messages.value.at(-1)?.id],
   async ([conversationId]) => {
     if (!conversationId) {
       positionedConversationId = null;
       return;
     }
 
-    const last = activeMessages.value.at(-1);
+    const last = messages.value.at(-1);
     if (!last) return;
 
     if (positionedConversationId !== conversationId) {
       positionedConversationId = conversationId;
-      const revealUnread = shouldRevealUnread.value;
-      shouldRevealUnread.value = false;
+      const revealUnread = takeRevealUnread(conversationId);
 
       await nextTick();
       if (revealUnread) scrollToFirstUnread();
@@ -250,7 +280,7 @@ const onLoadOlder = async () => {
   const el = scroller.value;
   const previousHeight = el?.scrollHeight ?? 0;
 
-  await loadOlderMessages();
+  if (conversationId.value) await loadOlderMessages(conversationId.value);
 
   await nextTick();
   if (el) el.scrollTop = el.scrollHeight - previousHeight;
@@ -269,7 +299,7 @@ const onLoadOlder = async () => {
       <WidgetAvatar
         :name="headerTitle"
         :variant="group ? 'group' : 'user'"
-        :src="activeConversation?.avatarUrl ?? draft?.avatarUrl"
+        :src="conversation?.avatarUrl ?? draft?.avatarUrl"
         :status="statusOf(headerPartnerId)"
         :show-presence="!group"
         size="sm"
@@ -285,13 +315,13 @@ const onLoadOlder = async () => {
         </p>
       </div>
 
-      <template v-if="activeConversation">
+      <template v-if="conversation">
         <button
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
           aria-label="Tìm trong hội thoại"
           title="Tìm trong hội thoại"
-          @click="view = 'search'"
+          @click="openScreen('search')"
         >
           <WidgetIcon name="Search" :size="17" />
         </button>
@@ -300,15 +330,15 @@ const onLoadOlder = async () => {
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-chat-accent/10"
           :class="
-            activeConversation.isMuted
+            conversation.isMuted
               ? 'text-chat-accent-strong'
               : 'text-gray-500 hover:text-chat-accent-strong'
           "
-          :aria-label="activeConversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
-          :title="activeConversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
-          @click="toggleMute(activeConversation.id)"
+          :aria-label="conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
+          :title="conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
+          @click="toggleMute(conversation.id)"
         >
-          <WidgetIcon :name="activeConversation.isMuted ? 'BellOff' : 'Bell'" :size="17" />
+          <WidgetIcon :name="conversation.isMuted ? 'BellOff' : 'Bell'" :size="17" />
         </button>
 
         <button
@@ -316,14 +346,14 @@ const onLoadOlder = async () => {
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
           :aria-label="group ? 'Thông tin nhóm' : 'Thông tin hội thoại'"
           :title="group ? 'Thông tin nhóm' : 'Thông tin hội thoại'"
-          @click="view = 'info'"
+          @click="openScreen('info')"
         >
           <WidgetIcon name="Info" :size="17" />
         </button>
       </template>
     </header>
 
-    <PinnedBar />
+    <PinnedBar v-if="conversation" :key="conversation.id" :conversation="conversation" />
 
     <div class="relative flex min-h-0 flex-1 flex-col">
       <div
@@ -349,7 +379,7 @@ const onLoadOlder = async () => {
           <WidgetAvatar
             :name="headerTitle"
             :variant="group ? 'group' : 'user'"
-            :src="activeConversation?.avatarUrl ?? draft?.avatarUrl"
+            :src="conversation?.avatarUrl ?? draft?.avatarUrl"
             size="lg"
           />
           <p class="mt-1 text-sm font-semibold text-gray-800">{{ headerTitle }}</p>
@@ -380,6 +410,8 @@ const onLoadOlder = async () => {
 
             <MessageCluster
               :cluster="cluster"
+              :conversation="conversation"
+              :messages="messages"
               :show-sender-name="group"
               :show-status="cluster.key === lastOwnClusterKey"
             />
@@ -417,12 +449,13 @@ const onLoadOlder = async () => {
 
     <MessageComposer
       ref="composer"
-      :key="activeConversationId ?? draft?.userId"
+      :key="conversationId ?? draft?.userId"
+      :conversation="conversation"
       :autofocus="Boolean(draft)"
       :placeholder="`Nhắn tin cho ${headerTitle}`"
-      @send="sendMessage"
-      @send-sticker="sendSticker"
-      @typing="notifyTyping"
+      @send="send"
+      @send-sticker="onSendSticker"
+      @typing="notifyTyping(conversationId)"
     />
 
     <!-- Không nhận chuột để sự kiện kéo vẫn rơi xuống khung chat bên dưới, bộ đếm tầng mới khớp. -->

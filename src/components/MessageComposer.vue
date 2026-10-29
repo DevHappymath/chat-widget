@@ -4,7 +4,7 @@ import { MAX_ATTACHMENTS_PER_MESSAGE } from "../constants/attachment";
 import { fileApi } from "../core/services";
 import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetToast } from "../core/store/useWidgetToast";
-import type { ChatParticipant, Sticker, UploadedFile } from "../types/chat";
+import type { ChatConversation, ChatParticipant, Sticker, UploadedFile } from "../types/chat";
 import { attachmentIcon } from "../utils/attachment";
 import {
   EVERYONE_MENTION,
@@ -22,7 +22,12 @@ import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const props = withDefaults(
-  defineProps<{ placeholder?: string; autofocus?: boolean }>(),
+  defineProps<{
+    /** null là bản nháp, chưa có thành viên để nhắc tên hay tin để trả lời. */
+    conversation: ChatConversation | null;
+    placeholder?: string;
+    autofocus?: boolean;
+  }>(),
   { placeholder: "Nhập tin nhắn", autofocus: false },
 );
 
@@ -40,14 +45,19 @@ const emit = defineEmits<{
 const toast = useWidgetToast();
 
 const {
-  activeConversation,
+  replyingToOf,
   currentUserId,
   attachmentRule,
   isGroup,
   membersOf,
-  replyingTo,
-  cancelReply,
+  cancelReply: cancelReplyIn,
 } = useChatStore();
+
+const replyingTo = computed(() => replyingToOf(props.conversation?.id ?? null));
+
+const cancelReply = () => {
+  if (props.conversation) cancelReplyIn(props.conversation.id);
+};
 
 const body = ref("");
 const textarea = ref<HTMLTextAreaElement | null>(null);
@@ -100,7 +110,7 @@ const displayNameOf = (participant: ChatParticipant) =>
   participant.fullName || participant.email || "Người dùng";
 
 const mentionCandidates = computed<MentionOption[]>(() => {
-  const conversation = activeConversation.value;
+  const conversation = props.conversation;
   if (!conversation || !isGroup(conversation) || mentionQuery.value === null) return [];
 
   const query = normalizeName(mentionQuery.value);
@@ -133,7 +143,7 @@ const mentionCandidates = computed<MentionOption[]>(() => {
 /** Chỉ nhận token ngay trước con trỏ; gặp khoảng trắng là kết thúc từ khoá. */
 const refreshMentionQuery = () => {
   const el = textarea.value;
-  const conversation = activeConversation.value;
+  const conversation = props.conversation;
 
   if (!el || !conversation || !isGroup(conversation)) {
     mentionQuery.value = null;
@@ -386,7 +396,7 @@ defineExpose({ focus, addFiles });
         type="button"
         class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-white hover:text-gray-800"
         aria-label="Bỏ trả lời"
-        @click="cancelReply"
+        @click="cancelReply()"
       >
         <WidgetIcon name="X" :size="14" />
       </button>

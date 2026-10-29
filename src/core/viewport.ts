@@ -1,28 +1,38 @@
-import { readonly, ref } from "vue";
+import { readonly, ref, type Ref } from "vue";
 
 /** Cùng mốc với breakpoint `sm` của Tailwind: dưới ngưỡng này panel chiếm trọn màn hình. */
 const WIDE_QUERY = "(min-width: 640px)";
 
-const isWide = ref(false);
-let mediaQuery: MediaQueryList | null = null;
-
-const applyMedia = (event: MediaQueryList | MediaQueryListEvent) => {
-  isWide.value = event.matches;
-};
-
 /**
- * Một listener duy nhất cho cả widget. Component nào cũng gọi được, lần gọi sau dùng lại
- * listener đã đăng ký.
+ * Hai khung 380px đứng cạnh nhau, cộng cột bong bóng và lề hai bên. Hẹp hơn thì khung thứ hai
+ * đè lên nội dung trang hoặc tràn ra ngoài.
  */
-export const useIsWideViewport = () => {
-  if (!mediaQuery && typeof window !== "undefined") {
-    mediaQuery = window.matchMedia(WIDE_QUERY);
-    applyMedia(mediaQuery);
-    mediaQuery.addEventListener("change", applyMedia);
+const TWO_WINDOWS_QUERY = "(min-width: 900px)";
+
+/** Một listener cho mỗi media query, component nào gọi lại cũng dùng chung. */
+const mediaFlags = new Map<string, Ref<boolean>>();
+
+const useMediaFlag = (query: string) => {
+  let flag = mediaFlags.get(query);
+  if (!flag) {
+    flag = ref(false);
+    mediaFlags.set(query, flag);
+
+    if (typeof window !== "undefined") {
+      const mediaQuery = window.matchMedia(query);
+      const target = flag;
+      target.value = mediaQuery.matches;
+      mediaQuery.addEventListener("change", (event) => (target.value = event.matches));
+    }
   }
 
-  return readonly(isWide);
+  return readonly(flag);
 };
+
+export const useIsWideViewport = () => useMediaFlag(WIDE_QUERY);
+
+/** Đủ chỗ mở hai hội thoại cạnh nhau; hẹp hơn thì chỉ một khung như cũ. */
+export const useFitsTwoWindows = () => useMediaFlag(TWO_WINDOWS_QUERY);
 
 /** Còn cách đáy trong khoảng này thì coi như đã cuộn tới cuối, đỡ lệch do làm tròn pixel. */
 const PAGE_END_THRESHOLD = 8;

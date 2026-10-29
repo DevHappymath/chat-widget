@@ -3,7 +3,12 @@ import { computed, nextTick, ref } from "vue";
 import { useChatStore } from "../core/store/useChatStore";
 import { useFileDownload } from "../core/store/useFileDownload";
 import { imagesFromMessages, useImageViewer } from "../core/store/useImageViewer";
-import { MessageType, type ChatMessage, type MessageAttachment } from "../types/chat";
+import {
+  MessageType,
+  type ChatConversation,
+  type ChatMessage,
+  type MessageAttachment,
+} from "../types/chat";
 import { attachmentIcon, isPreviewableInBrowser } from "../utils/attachment";
 import type { MessageCluster } from "../utils/chat";
 import {
@@ -20,6 +25,10 @@ import WidgetIcon from "./WidgetIcon.vue";
 
 const props = defineProps<{
   cluster: MessageCluster;
+  /** Hội thoại của khung đang chứa cụm này, để tra tên người được nhắc và người thả cảm xúc. */
+  conversation: ChatConversation | null;
+  /** Các tin đã tải của hội thoại, để bấm một ảnh là lướt tiếp được sang ảnh khác. */
+  messages: ChatMessage[];
   /** Nhóm mới cần in tên người gửi, hội thoại 1-1 thì thừa. */
   showSenderName: boolean;
   /** Cụm cuối của mình mới hiện trạng thái gửi, tránh lặp nhãn ở mọi bong bóng. */
@@ -27,8 +36,6 @@ const props = defineProps<{
 }>();
 
 const {
-  activeConversation,
-  activeMessages,
   pendingClientIds,
   failedClientIds,
   editingMessageId,
@@ -121,7 +128,7 @@ const status = computed(() => {
 });
 
 const participants = computed(() =>
-  activeConversation.value ? membersOf(activeConversation.value) : [],
+  props.conversation ? membersOf(props.conversation) : [],
 );
 
 const nameOfUser = (userId: string) => {
@@ -134,7 +141,7 @@ const nameOfUser = (userId: string) => {
 // Dải ảnh gồm mọi ảnh trong các tin đã tải, để bấm một ảnh là lướt tiếp được sang ảnh khác.
 const openImage = (file: MessageAttachment) =>
   imageViewer.open(
-    imagesFromMessages(activeMessages.value, (m) => m.senderName || nameOfUser(m.senderId)),
+    imagesFromMessages(props.messages, (m) => m.senderName || nameOfUser(m.senderId)),
     file.id,
   );
 
@@ -328,7 +335,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
               <button
                 type="button"
                 class="rounded-full px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
-                @click="cancelEditMessage"
+                @click="cancelEditMessage()"
               >
                 Huỷ
               </button>

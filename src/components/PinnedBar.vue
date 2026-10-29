@@ -1,23 +1,21 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { MAX_PINNED_PER_CONVERSATION } from "../constants/chat";
 import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetConfirm } from "../core/store/useWidgetConfirm";
-import type { ChatMessage } from "../types/chat";
+import type { ChatConversation, ChatMessage } from "../types/chat";
 import { messagePreview } from "../utils/chat";
 import WidgetIcon from "./WidgetIcon.vue";
 
-const {
-  activeConversation,
-  activeConversationId,
-  pinnedMessages,
-  isPinnedBarExpanded,
-  membersOf,
-  revealMessage,
-  togglePinMessage,
-} = useChatStore();
+const props = defineProps<{ conversation: ChatConversation }>();
+
+const { pinnedOf, membersOf, revealMessage, togglePinMessage } = useChatStore();
 
 const { ask } = useWidgetConfirm();
+
+const isPinnedBarExpanded = ref(false);
+
+const pinnedMessages = computed(() => pinnedOf(props.conversation.id));
 
 /** Thanh thu gọn chỉ khoe tin ghim mới nhất, đúng chỗ người ta nhìn đầu tiên. */
 const latest = computed(() => pinnedMessages.value[0] ?? null);
@@ -25,20 +23,14 @@ const latest = computed(() => pinnedMessages.value[0] ?? null);
 const senderNameOf = (message: ChatMessage) => {
   if (message.senderName) return message.senderName;
 
-  const participant = activeConversation.value
-    ? membersOf(activeConversation.value).find(
-        (p) => p.userId.toLowerCase() === message.senderId.toLowerCase(),
-      )
-    : undefined;
+  const participant = membersOf(props.conversation).find(
+    (p) => p.userId.toLowerCase() === message.senderId.toLowerCase(),
+  );
 
   return participant?.fullName || participant?.email || "Người dùng";
 };
 
-const onOpen = (message: ChatMessage) => {
-  if (activeConversationId.value) {
-    revealMessage(activeConversationId.value, message.id);
-  }
-};
+const onOpen = (message: ChatMessage) => revealMessage(props.conversation.id, message.id);
 
 const onUnpin = async (message: ChatMessage) => {
   const agreed = await ask({

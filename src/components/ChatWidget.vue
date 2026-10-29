@@ -6,6 +6,7 @@ import { setTabUnread, startTabAttention, stopTabAttention } from "../core/tabAt
 import {
   lockPageScroll,
   unlockPageScroll,
+  useFitsTwoWindows,
   useIsAtPageEnd,
   useIsWideViewport,
 } from "../core/viewport";
@@ -14,6 +15,7 @@ import ImageViewer from "./ImageViewer.vue";
 import MessageActionSheet from "./MessageActionSheet.vue";
 import MessageAlerts from "./MessageAlerts.vue";
 import MinimizedChats from "./MinimizedChats.vue";
+import SideChatWindow from "./SideChatWindow.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
 const props = defineProps<{ config: ChatWidgetConfig }>();
@@ -27,19 +29,21 @@ const {
   isPanelOpen,
   view,
   activeConversationId,
+  sideConversation,
   badgeCount,
   unreadMessageCount,
   init,
   togglePanel,
-  minimizeConversation,
+  collapseAll,
   refreshBadge,
   markRead,
-  isThreadAtBottom,
+  isAtBottom,
   minimizedConversations,
   syncMinimized,
 } = useChatStore();
 
 const isWide = useIsWideViewport();
+const fitsTwoWindows = useFitsTwoWindows();
 const isAtPageEnd = useIsAtPageEnd();
 
 // Cuối trang thường là chân trang, nút bấm phân trang... bong bóng nổi sẽ đè lên. Panel đang mở
@@ -84,30 +88,42 @@ const panelClass = computed(() =>
     : "sm:right-[calc(var(--gdtd-chat-x)+4.25rem)]",
 );
 
+// Khung thứ hai đứng ngoài khung chính (rộng 380px), cách một khoảng 0.75rem.
+const sidePanelClass = computed(() =>
+  isLeft.value
+    ? "left-[calc(var(--gdtd-chat-x)+4.25rem+380px+0.75rem)]"
+    : "right-[calc(var(--gdtd-chat-x)+4.25rem+380px+0.75rem)]",
+);
+
+const showSideWindow = computed(
+  () => isPanelOpen.value && fitsTwoWindows.value && Boolean(sideConversation.value),
+);
+
 const badgeLabel = computed(() => (badgeCount.value > 99 ? "99+" : `${badgeCount.value}`));
 
 const onKeydown = (event: KeyboardEvent) => {
-  if (event.key === "Escape" && isPanelOpen.value) minimizeConversation();
+  if (event.key === "Escape" && isPanelOpen.value) collapseAll();
 };
 
 const tabUnread = computed(() => (canUseChat.value ? unreadMessageCount.value : 0));
 watch(tabUnread, (count) => setTabUnread(count));
 
 // Tab ngủ dậy có thể đã lỡ vài event, nắn lại số trên bong bóng thay vì tin vào bộ đếm cũ.
-// Tin đến lúc tab ẩn chưa tính là đã đọc, nên panel đang mở đúng hội thoại và đang thấy tin cuối
-// thì đánh dấu lúc này; đang cuộn lên thì để nút "tin mới" lo.
+// Tin đến lúc tab ẩn chưa tính là đã đọc, nên khung nào đang mở và đang thấy tin cuối thì đánh
+// dấu lúc này; đang cuộn lên thì để nút "tin mới" lo.
 const onVisibilityChange = () => {
   if (document.visibilityState !== "visible") return;
 
   refreshBadge();
   syncMinimized();
-  if (
-    isPanelOpen.value &&
-    view.value === "thread" &&
-    activeConversationId.value &&
-    isThreadAtBottom.value
-  ) {
-    markRead(activeConversationId.value);
+  if (!isPanelOpen.value) return;
+
+  const visibleIds = [
+    view.value === "thread" ? activeConversationId.value : null,
+    showSideWindow.value ? (sideConversation.value?.id ?? null) : null,
+  ];
+  for (const conversationId of visibleIds) {
+    if (conversationId && isAtBottom(conversationId)) markRead(conversationId);
   }
 };
 
@@ -153,6 +169,22 @@ onBeforeUnmount(() => {
           :class="panelClass"
         >
           <ChatPanel />
+        </div>
+      </Transition>
+
+      <!-- Chỉ hiện khi màn đủ rộng cho hai khung; hẹp hơn thì store đã thu nó thành avatar. -->
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="translate-y-3 opacity-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-to-class="translate-y-3 opacity-0"
+      >
+        <div
+          v-if="showSideWindow && sideConversation"
+          class="pointer-events-auto absolute bottom-0 h-[520px] max-h-[calc(100dvh-1rem)] w-[380px]"
+          :class="sidePanelClass"
+        >
+          <SideChatWindow :key="sideConversation.id" :conversation="sideConversation" />
         </div>
       </Transition>
 
