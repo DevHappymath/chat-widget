@@ -12,8 +12,9 @@ thành viên, rời nhóm. Tìm kiếm tin nhắn (trong một hội thoại và
 tiếp tin, kho ảnh và tệp của hội thoại. Thu nhỏ hội thoại đang mở thành avatar cạnh bong bóng
 để mở lại nhanh.
 
-Màn hình từ 900px trở lên mở được hai hội thoại cạnh nhau: mở hội thoại mới thì hội thoại đang
-mở lùi sang khung bên trái, khung bên trái có sẵn hội thoại thì cái đó thu thành avatar. Hội thoại
+Màn hình từ 900px trở lên mở được hai hội thoại cạnh nhau: đang chat ở khung chính mà mở thêm
+hội thoại từ avatar thì hội thoại mới hiện ở khung bên trái, khung đang chat đứng yên chỗ cũ; khung
+bên trái có sẵn hội thoại thì cái đó thu thành avatar. Hội thoại
 đang hiện thành khung không có avatar, thu lại mới có. Khung bên trái chỉ để đọc và nhắn; bấm tìm
 kiếm, thông tin hay chuyển tiếp thì hội thoại đổi chỗ sang khung chính. Màn hẹp hơn vẫn một khung
 như cũ.

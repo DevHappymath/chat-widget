@@ -886,6 +886,26 @@ export const useChatStore = () => {
       return;
     }
 
+    await prepareThread(id);
+  };
+
+  /**
+   * Mở hội thoại ở khung thứ hai, bên trái khung chính. Khung đang chat đứng yên chỗ cũ để người
+   * dùng không gõ nhầm sang hội thoại vừa mở; khung thứ hai có hội thoại khác thì cái đó thu lại.
+   */
+  const openBesideMain = async (id: string) => {
+    if (sideConversationId.value === id) return;
+
+    if (sideConversationId.value) leaveSide(sideConversationId.value, { minimize: true });
+    dismissMinimized(id);
+    messageAlerts.dismiss(id);
+    sideConversationId.value = id;
+
+    await prepareThread(id);
+  };
+
+  /** Hội thoại vừa mở từ ngoài vào: đặt vạch tin chưa đọc, tải lịch sử, tin ghim và đánh dấu đã đọc. */
+  const prepareThread = async (id: string) => {
     cancelEditMessage(id);
     cancelReply(id);
 
@@ -1962,9 +1982,16 @@ export const useChatStore = () => {
     return minimizedSyncing;
   };
 
-  /** Mở lại ở khung chính; hội thoại đang ở đó lùi sang khung thứ hai thay vì thành avatar. */
+  /** Khung chính đang chat dở thì mở bên trái nó; khung chính trống thì mở ngay ở đó. */
   const restoreMinimized = async (conversationId: string) => {
     if (!isPanelOpen.value) await openPanel();
+
+    const mainId = activeConversationId.value;
+    if (mainId && mainId !== conversationId && fitsTwoWindows.value) {
+      await openBesideMain(conversationId);
+      return;
+    }
+
     await selectConversation(conversationId);
   };
 
