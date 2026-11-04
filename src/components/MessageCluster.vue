@@ -421,7 +421,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                     </span>
                   </button>
 
-                  <p v-if="message.content">
+                  <p v-if="message.content" class="whitespace-pre-wrap">
                     <template v-for="(segment, index) in contentSegments(message)" :key="index">
                       <a
                         v-if="segment.href"
