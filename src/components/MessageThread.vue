@@ -48,6 +48,7 @@ const {
   notifyTyping,
   toggleMute,
   selectConversation,
+  acknowledgeConversation,
   attachmentRule,
 } = useChatStore();
 
@@ -288,8 +289,11 @@ const onLoadOlder = async () => {
 </script>
 
 <template>
+  <!-- Hội thoại tự mở khi có tin chỉ tính là đã đọc khi người dùng bấm hoặc gõ vào khung. -->
   <div
     class="relative flex min-h-0 flex-1 flex-col"
+    @pointerdown="acknowledgeConversation(conversationId)"
+    @focusin="acknowledgeConversation(conversationId)"
     @dragenter="onDragEnter"
     @dragover="onDragOver"
     @dragleave="onDragLeave"

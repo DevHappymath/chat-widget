@@ -12,6 +12,10 @@ thành viên, rời nhóm. Tìm kiếm tin nhắn (trong một hội thoại và
 tiếp tin, kho ảnh và tệp của hội thoại. Thu nhỏ hội thoại đang mở thành avatar cạnh bong bóng
 để mở lại nhanh.
 
+Panel, các hội thoại đang mở và dãy avatar thu nhỏ đồng bộ giữa các site chung tên miền mẹ
+(cookie `gdtd_chat_windows`): chuyển trang hay chuyển sang site khác là thấy lại đúng các khung
+đang chat, đóng ở site này thì site kia cũng đóng khi quay lại.
+
 Màn hình từ 900px trở lên mở được hai hội thoại cạnh nhau: đang chat ở khung chính mà mở thêm
 hội thoại từ avatar thì hội thoại mới hiện ở khung bên trái, khung đang chat đứng yên chỗ cũ; khung
 bên trái có sẵn hội thoại thì cái đó thu thành avatar. Hội thoại
@@ -175,9 +179,14 @@ lần qua `POST /chat/hub-ticket` (đi qua proxy hoặc kèm `getToken`).
    lúc mất mạng thì mất luôn.
 5. Đọc tin ở bất kỳ tab nào cũng tắt badge ở mọi tab, nhờ backend gửi `ConversationRead` cho
    cả chính người đọc.
-6. Tin mới khi panel đang đóng hiện thành thẻ nổi ngay trên bong bóng, mỗi hội thoại một thẻ,
-   tối đa ba thẻ, tự tắt sau 6 giây (tab ẩn thì chưa đếm giờ). Bấm thẻ là mở đúng hội thoại.
-   Tin hệ thống và hội thoại đang tắt thông báo không hiện thẻ.
+6. Tin mới tự mở hội thoại của người gửi: khung chính trống thì vào khung chính (panel đóng thì
+   mở panel), khung chính đang bận thì vào khung bên trái, đủ hai khung rồi thì thành avatar thu
+   nhỏ; dãy avatar đầy (4) thì avatar trên cùng nhường chỗ. Màn hẹp không tự mở panel, chỉ thêm
+   avatar và hiện thẻ nổi ngay trên bong bóng (mỗi hội thoại một thẻ, tối đa ba thẻ, tự tắt sau
+   6 giây, tab ẩn thì chưa đếm giờ). Tin hệ thống, hội thoại đang tắt thông báo và lúc đang để
+   "không làm phiền" thì không tự mở gì. Hội thoại tự mở chưa tính là đã đọc (vẫn còn số chưa đọc
+   và vạch "Tin chưa đọc") cho tới khi người dùng bấm hoặc gõ vào khung chat của nó, hay tự chọn
+   nó từ danh sách, avatar, thẻ nổi; bấm thu nhỏ hay đóng khung thì không tính.
 7. Tiêu đề tab của site có thêm `(n)` là số tin chưa đọc, favicon có số đỏ ở góc; người dùng đang ở
    tab khác thì tiêu đề nhấp nháy "n tin nhắn mới". Site đổi tiêu đề hay favicon khi chuyển
    trang thì widget tự gắn lại. Tắt bằng `tabIndicator: false` nếu site đã dùng tiêu đề để báo
@@ -191,7 +200,11 @@ lần qua `POST /chat/hub-ticket` (đi qua proxy hoặc kèm `getToken`).
   file này thì không có gì báo lỗi, widget chỉ im lặng không nhận tin.
 - **URL tệp đính kèm phải tuyệt đối.** Backend đã ghép `App:PublicBaseUrl`; widget dùng nguyên
   văn `fileUrl`, không tự ghép tiền tố.
-- **Panel đóng thì tin mới vẫn tính là chưa đọc**, kể cả khi hội thoại đó đang được chọn.
+- **Panel đóng thì tin mới vẫn tính là chưa đọc**, kể cả khi hội thoại đó đang được chọn. Tab
+  đang ẩn cũng không đánh dấu đã đọc (`markRead` tự bỏ qua), dù hội thoại vừa tự mở ra ở đó.
+- **Chỉ tab còn mới mới được ghi cookie khung chat.** Tab nào cũng tự mở hội thoại khi có tin,
+  nhưng tab ẩn mà cookie đã bị nơi khác ghi đè từ lần nó đọc thì không ghi, kẻo trạng thái cũ
+  của nó đè lên thao tác người dùng vừa làm ở site khác (xem `persistWindows`).
 - **Tìm kiếm so trên chuỗi đã bỏ dấu ở backend**, nên `splitKeywordMatches` trong `utils/chat.ts`
   cũng phải bỏ dấu; đổi cách chuẩn hoá một bên là kết quả ra mà không chỗ nào được tô sáng.
 - **Thu hồi tin gỡ ghim ngay ở backend nhưng chỉ phát `MessageDeleted`**, không phát thêm

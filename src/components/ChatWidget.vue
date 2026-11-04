@@ -39,7 +39,7 @@ const {
   markRead,
   isAtBottom,
   minimizedConversations,
-  syncMinimized,
+  syncWindows,
 } = useChatStore();
 
 const isWide = useIsWideViewport();
@@ -115,7 +115,7 @@ const onVisibilityChange = () => {
   if (document.visibilityState !== "visible") return;
 
   refreshBadge();
-  syncMinimized();
+  syncWindows();
   if (!isPanelOpen.value) return;
 
   const visibleIds = [
@@ -128,7 +128,7 @@ const onVisibilityChange = () => {
 };
 
 // Hai cửa sổ đặt cạnh nhau thì chuyển qua lại không đổi visibility, chỉ có focus.
-const onWindowFocus = () => syncMinimized();
+const onWindowFocus = () => syncWindows();
 
 onMounted(() => {
   init();

@@ -44,10 +44,16 @@ import {
 } from "../../utils/chat";
 import { extractErrorMessage } from "../../utils/error";
 import { onHubEvent, onHubReconnected, sendTyping, startHub } from "../hub";
-import { readMinimizedIds, writeMinimizedIds } from "../minimizedSync";
 import { conversationApi, messageApi, userApi, widgetApi } from "../services";
 import { announceTabMessage } from "../tabAttention";
-import { useFitsTwoWindows } from "../viewport";
+import { useFitsTwoWindows, useIsWideViewport } from "../viewport";
+import {
+  isSameWindows,
+  readSharedWindows,
+  writeSharedWindows,
+  type ChatWindows,
+  type SharedChatWindows,
+} from "../windowSync";
 import { useMessageAlerts } from "./useMessageAlerts";
 import { usePresence } from "./usePresence";
 import { useStickers } from "./useStickers";
@@ -175,6 +181,11 @@ const highlightedMessageId = ref<string | null>(null);
  * hơn mốc lưu ở đây.
  */
 const unreadMarkers = ref<Record<string, number>>({});
+/**
+ * Hội thoại tự hiện thành khung (có tin mới, hoặc dựng lại theo site khác) mà người dùng chưa bấm
+ * vào: thấy trên màn hình nhưng chưa tính là đã đọc.
+ */
+const unclickedIds = new Set<string>();
 /** Khung chat của hội thoại đang cuộn sát đáy, tức người dùng đang thấy tin mới nhất. */
 const atBottomByConversation = ref<Record<string, boolean>>({});
 /**
@@ -226,7 +237,13 @@ const dissolvingIds = new Set<string>();
 
 let isSubscribed = false;
 /** Lấy lại tab vừa bắn cả focus lẫn visibilitychange, chỉ cần đồng bộ một lượt. */
-let minimizedSyncing: Promise<void> | null = null;
+let windowsSyncing: Promise<void> | null = null;
+/** Mốc cookie khung chat mà tab này đọc hoặc ghi gần nhất; khác mốc trong cookie là tab đang cũ. */
+let sharedStamp: string | null = null;
+/** Đang dựng lại khung theo site khác: các bước dở dang không được ghi đè cookie. */
+let isApplyingShared = false;
+/** Tin dồn dập từ nhiều hội thoại: mở lần lượt để hai hội thoại không tranh cùng một khung. */
+let incomingOpening: Promise<void> = Promise.resolve();
 let badgeTimer: ReturnType<typeof setTimeout> | null = null;
 /** Lần cuối báo đang soạn, theo hội thoại: gõ ở khung này không được chặn tín hiệu của khung kia. */
 const typingSentAt = new Map<string, number>();
@@ -240,6 +257,7 @@ export const useChatStore = () => {
   const presence = usePresence();
   const messageAlerts = useMessageAlerts();
   const fitsTwoWindows = useFitsTwoWindows();
+  const isWide = useIsWideViewport();
 
   const currentUserId = computed(() =>
     (bootstrap.value?.user?.id ?? "").toLowerCase(),
@@ -560,6 +578,7 @@ export const useChatStore = () => {
     delete messagesByConversation.value[conversationId];
     delete replyingByConversation.value[conversationId];
     delete unreadMarkers.value[conversationId];
+    unclickedIds.delete(conversationId);
 
     if (sideConversationId.value === conversationId) sideConversationId.value = null;
 
@@ -669,7 +688,8 @@ export const useChatStore = () => {
     // đúng hội thoại.
     const isWatching =
       isThreadVisible(conversation.id) && document.visibilityState === "visible";
-    const isReading = isWatching && isAtBottom(conversation.id);
+    const isReading =
+      isWatching && isAtBottom(conversation.id) && !unclickedIds.has(conversation.id);
 
     if (isOpenInWindow(conversation.id) && !isReading && !isOwnMessage(message)) {
       markUnreadFrom(conversation);
@@ -737,7 +757,10 @@ export const useChatStore = () => {
     return pending;
   };
 
-  /** Bỏ qua tin hệ thống và hội thoại đang tắt thông báo. Panel đang mở thì không hiện thẻ. */
+  /**
+   * Bỏ qua tin hệ thống và hội thoại đang tắt thông báo. Hội thoại của người gửi tự mở ra; còn
+   * panel đóng (màn hẹp không tự mở panel) thì hiện thẻ nổi.
+   */
   const alertIncoming = async (message: ChatMessage) => {
     if (isOwnMessage(message) || message.type === MessageType.System) return;
 
@@ -747,6 +770,12 @@ export const useChatStore = () => {
     if (presence.isDoNotDisturb.value) return;
 
     announceTabMessage();
+    if (conversation) {
+      incomingOpening = incomingOpening
+        .then(() => openIncoming(conversation))
+        .catch((err) => console.error("[chat-widget] openIncoming:", err));
+      await incomingOpening;
+    }
     if (isPanelOpen.value) return;
 
     const group = conversation ? isGroup(conversation) : false;
@@ -826,6 +855,11 @@ export const useChatStore = () => {
   };
 
   const markRead = async (conversationId: string) => {
+    // Tab ẩn vẫn tự mở hội thoại khi có tin hoặc theo site khác, nhưng người dùng chưa thấy gì;
+    // quay lại tab thì ChatWidget đánh dấu những khung đang thấy.
+    if (document.visibilityState !== "visible") return;
+    if (unclickedIds.has(conversationId)) return;
+
     const conversation = findConversation(conversationId);
     if (!conversation || conversation.lastSequence <= conversation.lastReadSequence) {
       return;
@@ -864,11 +898,31 @@ export const useChatStore = () => {
     sideConversationId.value = current.id;
   };
 
-  /** Mở hội thoại ở khung chính; đang nằm ở khung thứ hai thì hai khung đổi chỗ cho nhau. */
-  const selectConversation = async (id: string) => {
+  /** Người dùng bấm vào khung chat của hội thoại tự mở: lúc này mới tính là đã đọc. */
+  const acknowledgeConversation = (id: string | null) => {
+    if (!id || !unclickedIds.delete(id)) return;
+    void markRead(id);
+  };
+
+  /** Người dùng chọn mở hội thoại ở khung chính; đang ở khung thứ hai thì hai khung đổi chỗ. */
+  const selectConversation = (id: string) => {
+    unclickedIds.delete(id);
+    return moveToMain(id);
+  };
+
+  /** Dời hội thoại vào khung chính mà không tính là người dùng đã bấm vào nó. */
+  const moveToMain = async (id: string) => {
     const wasOpen = isOpenInWindow(id);
 
     makeRoomInMain(id);
+    await showInMain(id, wasOpen);
+  };
+
+  /**
+   * Đặt hội thoại vào khung chính, hội thoại đang chiếm chỗ thì bên gọi tự lo.
+   * @param wasOpen hội thoại đã hiện ở một trong hai khung trước khi dời chỗ.
+   */
+  const showInMain = async (id: string, wasOpen: boolean) => {
     if (sideConversationId.value === id) sideConversationId.value = null;
     // Đang hiện thành khung thì không còn là avatar thu nhỏ nữa.
     dismissMinimized(id);
@@ -902,6 +956,42 @@ export const useChatStore = () => {
     sideConversationId.value = id;
 
     await prepareThread(id);
+  };
+
+  /** Hội thoại phải nằm trong danh sách thì khung chat mới dựng được; ngoài 50 cái gần nhất thì hỏi riêng. */
+  const ensureConversation = async (id: string) => {
+    const conversation = await resolveConversation(id);
+    if (conversation && !findConversation(id)) upsertConversation(conversation);
+    return findConversation(id) ?? null;
+  };
+
+  /**
+   * Tin mới mở hội thoại của người gửi: khung chính trống thì vào đó, còn khung thứ hai thì vào
+   * khung thứ hai, hết chỗ thì thành avatar thu nhỏ (dãy đầy thì avatar trên cùng nhường chỗ).
+   */
+  const openIncoming = async (incoming: ChatConversation) => {
+    if (isPanelOpen.value && isOpenInWindow(incoming.id)) return;
+
+    // Màn hẹp thì panel phủ kín trang, tự bật lên hay tự đổi màn là chặn ngang việc đang làm.
+    if (!isWide.value) {
+      keepMinimized(incoming);
+      return;
+    }
+
+    if (!isPanelOpen.value) await openPanel();
+
+    const conversation = await ensureConversation(incoming.id);
+    if (!conversation || isOpenInWindow(conversation.id)) return;
+
+    if (view.value === "list") {
+      unclickedIds.add(conversation.id);
+      await moveToMain(conversation.id);
+    } else if (fitsTwoWindows.value && !sideConversationId.value) {
+      unclickedIds.add(conversation.id);
+      await openBesideMain(conversation.id);
+    } else {
+      keepMinimized(conversation);
+    }
   };
 
   /** Hội thoại vừa mở từ ngoài vào: đặt vạch tin chưa đọc, tải lịch sử, tin ghim và đánh dấu đã đọc. */
@@ -1755,6 +1845,7 @@ export const useChatStore = () => {
         // Đã đọc ở tab/thiết bị khác thì thẻ nổi ở đây cũng hết tác dụng.
         if (payload.lastReadSequence >= conversation.lastSequence) {
           messageAlerts.dismiss(conversation.id);
+          unclickedIds.delete(conversation.id);
         }
       }
     });
@@ -1819,11 +1910,8 @@ export const useChatStore = () => {
 
       if (!res.data.data.canUseChat) return;
 
-      watch(
-        () => minimizedSnapshots.value.map((c) => c.id),
-        (ids) => writeMinimizedIds(currentUserId.value, ids),
-      );
-      void syncMinimized();
+      watch(currentWindows, persistWindows);
+      void syncWindows();
 
       // Thu hẹp cửa sổ trình duyệt thì khung thứ hai không còn chỗ, gập nó thành avatar.
       watch(fitsTwoWindows, (fits) => {
@@ -1911,7 +1999,7 @@ export const useChatStore = () => {
 
     if (hadConversation || sideId) backToList();
     if (sideId) {
-      void selectConversation(sideId);
+      void moveToMain(sideId);
       return;
     }
 
@@ -1945,10 +2033,40 @@ export const useChatStore = () => {
     backToList();
   };
 
-  const pullMinimizedFromOtherSites = async () => {
-    // Hội thoại site khác thu nhỏ mà ở đây đang mở thành khung thì không thêm avatar trùng.
-    const ids = readMinimizedIds(currentUserId.value)?.filter((id) => !isOpenInWindow(id));
-    if (!ids) return;
+  // ─── Đồng bộ khung chat giữa các site ───────────────────────────────────────
+
+  const currentWindows = (): ChatWindows => ({
+    isPanelOpen: isPanelOpen.value,
+    mainId: isPanelOpen.value ? activeConversationId.value : null,
+    sideId: isPanelOpen.value ? sideConversationId.value : null,
+    minimizedIds: minimizedSnapshots.value.map((c) => c.id),
+  });
+
+  /**
+   * Ghi khung đang hiện vào cookie dùng chung. Tab ẩn có thể tự mở hội thoại khi có tin, nhưng nó
+   * chỉ được ghi khi chưa ai ghi đè từ lần nó đọc, kẻo trạng thái cũ của nó đè lên thao tác ở site khác.
+   */
+  const persistWindows = () => {
+    if (isApplyingShared || !canUseChat.value) return;
+
+    const userId = currentUserId.value;
+    const windows = currentWindows();
+    const shared = readSharedWindows(userId);
+
+    if (shared && isSameWindows(shared, windows)) {
+      sharedStamp = shared.stamp;
+      return;
+    }
+
+    const isActiveTab = document.visibilityState === "visible" && document.hasFocus();
+    if ((shared?.stamp ?? null) !== sharedStamp && !isActiveTab) return;
+
+    sharedStamp = writeSharedWindows(userId, windows);
+  };
+
+  /** Dãy avatar theo site khác; hội thoại ở đây đang hiện thành khung thì không thêm avatar trùng. */
+  const applySharedMinimized = async (minimizedIds: string[]) => {
+    const ids = minimizedIds.filter((id) => !isOpenInWindow(id));
     if (ids.join(",") === minimizedSnapshots.value.map((c) => c.id).join(",")) return;
 
     // Có nạp danh sách thì avatar mới có số chưa đọc chạy theo tin đến như lúc tự thu nhỏ.
@@ -1971,19 +2089,86 @@ export const useChatStore = () => {
   };
 
   /**
-   * Lấy dãy hội thoại thu nhỏ mà site khác cùng tên miền vừa lưu, gọi khi widget khởi động và
-   * mỗi lần người dùng quay lại tab.
+   * Dựng lại đúng các khung site khác đang hiện. Hội thoại đổi khung thì giữ nguyên lịch sử, vạch
+   * chưa đọc và tin đang trả lời; chỉ hội thoại mới hiện ra mới phải tải.
    */
-  const syncMinimized = () => {
+  const applySharedWindows = async (shared: SharedChatWindows) => {
+    if (!shared.isPanelOpen) {
+      if (sideConversationId.value) leaveSide(sideConversationId.value, { minimize: false });
+      if (activeConversationId.value) backToList();
+      if (isPanelOpen.value) closePanel();
+      await applySharedMinimized(shared.minimizedIds);
+      return;
+    }
+
+    if (!isPanelOpen.value) await openPanel();
+
+    const [main, side] = await Promise.all([
+      shared.mainId ? ensureConversation(shared.mainId) : null,
+      shared.sideId && shared.sideId !== shared.mainId ? ensureConversation(shared.sideId) : null,
+    ]);
+    const mainWasOpen = main ? isOpenInWindow(main.id) : false;
+    const sideWasOpen = side ? isOpenInWindow(side.id) : false;
+    // Site khác tự mở mà chưa ai bấm vào thì ở đây cũng chưa tính là đã đọc.
+    for (const [conversation, wasOpen] of [[main, mainWasOpen], [side, sideWasOpen]] as const) {
+      if (conversation && !wasOpen && conversation.lastSequence > conversation.lastReadSequence) {
+        unclickedIds.add(conversation.id);
+      }
+    }
+    // Màn này không đủ chỗ hai khung thì hội thoại ở khung thứ hai thu thành avatar như khi tự thu hẹp.
+    const sideTarget = side && fitsTwoWindows.value ? side : null;
+
+    const currentSideId = sideConversationId.value;
+    if (currentSideId && currentSideId !== sideTarget?.id) {
+      if (currentSideId === main?.id) sideConversationId.value = null;
+      else leaveSide(currentSideId, { minimize: false });
+    }
+
+    if (main && activeConversationId.value !== main.id) await showInMain(main.id, mainWasOpen);
+    else if (!main && activeConversationId.value) backToList();
+
+    if (sideTarget && sideConversationId.value !== sideTarget.id) {
+      dismissMinimized(sideTarget.id);
+      messageAlerts.dismiss(sideTarget.id);
+      sideConversationId.value = sideTarget.id;
+      if (!sideWasOpen) await prepareThread(sideTarget.id);
+    }
+
+    await applySharedMinimized(shared.minimizedIds);
+    if (side && !sideTarget) keepMinimized(side);
+  };
+
+  const pullSharedWindows = async () => {
+    const shared = readSharedWindows(currentUserId.value);
+    if (!shared || shared.stamp === sharedStamp) return;
+
+    isApplyingShared = true;
+    try {
+      await applySharedWindows(shared);
+    } finally {
+      isApplyingShared = false;
+    }
+
+    sharedStamp = shared.stamp;
+    // Màn hẹp vừa thu khung thứ hai thành avatar thì cookie phải theo, site khác mới thấy đúng.
+    persistWindows();
+  };
+
+  /**
+   * Mở lại đúng panel, hội thoại và dãy avatar mà site khác cùng tên miền vừa lưu; gọi khi widget
+   * khởi động và mỗi lần người dùng quay lại tab.
+   */
+  const syncWindows = () => {
     if (!canUseChat.value) return Promise.resolve();
-    minimizedSyncing ??= pullMinimizedFromOtherSites().finally(() => {
-      minimizedSyncing = null;
+    windowsSyncing ??= pullSharedWindows().finally(() => {
+      windowsSyncing = null;
     });
-    return minimizedSyncing;
+    return windowsSyncing;
   };
 
   /** Khung chính đang chat dở thì mở bên trái nó; khung chính trống thì mở ngay ở đó. */
   const restoreMinimized = async (conversationId: string) => {
+    unclickedIds.delete(conversationId);
     if (!isPanelOpen.value) await openPanel();
 
     const mainId = activeConversationId.value;
@@ -2033,7 +2218,7 @@ export const useChatStore = () => {
     closeSide,
     restoreMinimized,
     dismissMinimized,
-    syncMinimized,
+    syncWindows,
     goBack,
     // dữ liệu
     conversations,
@@ -2103,6 +2288,7 @@ export const useChatStore = () => {
     loadConversations,
     loadOlderMessages,
     selectConversation,
+    acknowledgeConversation,
     openConversationWith,
     markRead,
     sendMessage,
