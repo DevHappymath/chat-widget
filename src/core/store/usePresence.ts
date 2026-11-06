@@ -8,7 +8,7 @@ import {
   type UserPresence,
 } from "../../types/chat";
 import { getPresences, onHubEvent, onHubReconnected, sendIdle } from "../hub";
-import { isUserIdle, startIdleWatch } from "../idleWatcher";
+import { isUserIdle, startIdleWatch, stopIdleWatch } from "../idleWatcher";
 import { presenceApi } from "../services";
 
 /** Guid từ backend luôn viết thường, nhưng sub trong token thì không chắc, nên chuẩn hoá hết. */
@@ -24,6 +24,7 @@ const entries = ref<Record<string, PresenceEntry>>({});
 const mine = ref<MyPresence | null>(null);
 let selfId = "";
 let isSubscribed = false;
+let unsubscribers: Array<() => void> = [];
 
 /**
  * Trạng thái hoạt động của người có chung hội thoại và của chính mình. Nguồn duy nhất là hub:
@@ -93,22 +94,37 @@ export const usePresence = () => {
     if (isSubscribed) return;
     isSubscribed = true;
 
-    onHubEvent(HubEvent.PresenceChanged, (payload: UserPresence) => apply(payload));
-    onHubEvent(HubEvent.PresenceSettingsChanged, (payload: MyPresence) => {
-      mine.value = payload;
-    });
+    unsubscribers.push(
+      onHubEvent(HubEvent.PresenceChanged, (payload: UserPresence) => apply(payload)),
+      onHubEvent(HubEvent.PresenceSettingsChanged, (payload: MyPresence) => {
+        mine.value = payload;
+      }),
+    );
 
     // Mất kết nối là mất luôn các event ở giữa, nên nối lại phải nạp lại từ đầu. Kết nối mới ở
     // server mặc định là có người thao tác, nên đang rảnh tay thì báo lại.
-    onHubReconnected(() => {
-      sync();
-      loadMine();
-      if (isUserIdle()) sendIdle(true);
-    });
+    unsubscribers.push(
+      onHubReconnected(() => {
+        sync();
+        loadMine();
+        if (isUserIdle()) sendIdle(true);
+      }),
+    );
 
     startIdleWatch((idle) => sendIdle(idle));
     sync();
     loadMine();
+  };
+
+  /** Huỷ đăng ký và xoá trạng thái của người dùng cũ, để phiên đăng nhập sau không thấy lại. */
+  const stop = () => {
+    unsubscribers.forEach((unsubscribe) => unsubscribe());
+    unsubscribers = [];
+    stopIdleWatch();
+    isSubscribed = false;
+    selfId = "";
+    entries.value = {};
+    mine.value = null;
   };
 
   return {
@@ -119,6 +135,7 @@ export const usePresence = () => {
     messageOf,
     isOnline,
     start,
+    stop,
     sync,
     setStatus,
     setMessage,

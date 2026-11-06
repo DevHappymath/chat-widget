@@ -43,10 +43,10 @@ import {
   type ReactionOp,
 } from "../../utils/chat";
 import { extractErrorMessage } from "../../utils/error";
-import { onHubEvent, onHubReconnected, sendTyping, startHub } from "../hub";
+import { onHubEvent, onHubReconnected, sendTyping, startHub, stopHub } from "../hub";
 import { conversationApi, messageApi, userApi, widgetApi } from "../services";
 import { announceTabMessage } from "../tabAttention";
-import { useFitsTwoWindows, useIsWideViewport } from "../viewport";
+import { stopViewportWatch, useFitsTwoWindows, useIsWideViewport } from "../viewport";
 import {
   isSameWindows,
   readSharedWindows,
@@ -89,6 +89,9 @@ const MAX_REVEAL_PAGES = 5;
 
 /** Gộp các event dồn dập vào một lần gọi bootstrap để nắn lại số trên bong bóng. */
 const BADGE_REFRESH_DELAY_MS = 4000;
+
+/** Quay lại tab hay bấm vào cửa sổ liên tục thì không nắn badge lại trong khoảng này. */
+const RESUME_REFRESH_MIN_INTERVAL_MS = 5000;
 
 interface TypingEntry {
   conversationId: string;
@@ -245,8 +248,68 @@ let isApplyingShared = false;
 /** Tin dồn dập từ nhiều hội thoại: mở lần lượt để hai hội thoại không tranh cùng một khung. */
 let incomingOpening: Promise<void> = Promise.resolve();
 let badgeTimer: ReturnType<typeof setTimeout> | null = null;
+/** Nhiều nơi cùng đòi nắn badge thì chỉ gọi một lần, ai cũng chờ chung kết quả. */
+let badgeRefreshing: Promise<void> | null = null;
+let badgeRefreshedAt = 0;
+let typingTimer: ReturnType<typeof setTimeout> | null = null;
+/** Tăng mỗi lần dọn widget để kết quả của lời gọi dở dang thuộc phiên cũ không ghi đè phiên mới. */
+let lifecycle = 0;
+/** Hàm huỷ đăng ký hub và watch của phiên hiện tại; chạy hết khi dọn widget. */
+const teardowns: Array<() => void> = [];
 /** Lần cuối báo đang soạn, theo hội thoại: gõ ở khung này không được chặn tín hiệu của khung kia. */
 const typingSentAt = new Map<string, number>();
+
+/** Đưa mọi state dùng chung về giá trị ban đầu, không để dữ liệu của người dùng trước lọt sang người sau. */
+const resetState = () => {
+  bootstrap.value = null;
+  isBooting.value = false;
+  bootError.value = null;
+  conversations.value = [];
+  conversationsLoaded.value = false;
+  messagesByConversation.value = {};
+  hasMoreByConversation.value = {};
+  pendingClientIds.value = [];
+  failedClientIds.value = [];
+  typingEntries.value = [];
+  activeConversationId.value = null;
+  sideConversationId.value = null;
+  draft.value = null;
+  isSavingAvatar.value = false;
+  replyingByConversation.value = {};
+  editingMessageId.value = null;
+  editingConversationId.value = null;
+  editingContent.value = "";
+  actionSheetMessage.value = null;
+  actionSheetAnchor.value = null;
+  actionSheetShowsEmojiPicker.value = false;
+  highlightedMessageId.value = null;
+  unreadMarkers.value = {};
+  atBottomByConversation.value = {};
+  revealUnreadByConversation.value = {};
+  filter.value = "all";
+  keyword.value = "";
+  pinnedByConversation.value = {};
+  messageSearchKeyword.value = "";
+  messageSearchResults.value = [];
+  messageSearchHasMore.value = false;
+  isSearchingMessages.value = false;
+  globalSearchResults.value = [];
+  globalSearchTotal.value = 0;
+  globalSearchPage.value = 1;
+  isSearchingGlobal.value = false;
+  forwardingMessage.value = null;
+  mediaItems.value = [];
+  mediaKind.value = null;
+  mediaHasMore.value = false;
+  isLoadingMedia.value = false;
+  isPanelOpen.value = false;
+  view.value = "list";
+  minimizedSnapshots.value = [];
+  isLoadingConversations.value = false;
+  loadingMessagesByConversation.value = {};
+  unreadFallback.value = 0;
+  unreadMessagesFallback.value = 0;
+};
 
 /**
  * State chat của widget: bootstrap, danh sách hội thoại, lịch sử tin nhắn và các event
@@ -506,9 +569,21 @@ export const useChatStore = () => {
       : unreadMessagesFallback.value,
   );
 
+  // Một timer duy nhất đặt theo mốc hết hạn sớm nhất, và chỉ gán lại mảng khi thật sự có mục hết hạn.
+  const schedulePurgeTyping = () => {
+    if (typingTimer) clearTimeout(typingTimer);
+    typingTimer = null;
+    if (typingEntries.value.length === 0) return;
+
+    const earliest = Math.min(...typingEntries.value.map((e) => e.expiresAt));
+    typingTimer = setTimeout(purgeExpiredTyping, Math.max(0, earliest - Date.now()) + 100);
+  };
+
   const purgeExpiredTyping = () => {
     const now = Date.now();
-    typingEntries.value = typingEntries.value.filter((e) => e.expiresAt > now);
+    const alive = typingEntries.value.filter((e) => e.expiresAt > now);
+    if (alive.length !== typingEntries.value.length) typingEntries.value = alive;
+    schedulePurgeTyping();
   };
 
   const typingUserIdsOf = (conversationId: string) => {
@@ -533,18 +608,33 @@ export const useChatStore = () => {
    * Nắn lại số chưa đọc bằng bootstrap. Cần vì thu hồi tin không làm giảm badge và vì event
    * phát ra trong lúc mất mạng thì mất luôn.
    */
-  const refreshBadge = async () => {
-    try {
-      const res = await widgetApi.bootstrap();
-      bootstrap.value = res.data.data;
-      unreadFallback.value = res.data.data.unreadConversations;
-      unreadMessagesFallback.value = res.data.data.unreadMessages ?? 0;
-      countedUnreadIds.clear();
-      fetchedConversations.clear();
-    } catch {
-      // Badge lệch một nhịp không đáng để làm phiền người dùng.
-    }
+  const refreshBadge = () => {
+    badgeRefreshing ??= (async () => {
+      const session = lifecycle;
+      try {
+        const res = await widgetApi.bootstrap();
+        if (session !== lifecycle) return;
+
+        bootstrap.value = res.data.data;
+        unreadFallback.value = res.data.data.unreadConversations;
+        unreadMessagesFallback.value = res.data.data.unreadMessages ?? 0;
+        countedUnreadIds.clear();
+        fetchedConversations.clear();
+      } catch {
+        // Badge lệch một nhịp không đáng để làm phiền người dùng.
+      } finally {
+        badgeRefreshing = null;
+        badgeRefreshedAt = Date.now();
+      }
+    })();
+    return badgeRefreshing;
   };
+
+  /** Dùng cho lúc quay lại tab: vừa nắn xong chưa lâu thì bỏ qua. */
+  const refreshBadgeIfStale = () =>
+    Date.now() - badgeRefreshedAt < RESUME_REFRESH_MIN_INTERVAL_MS
+      ? Promise.resolve()
+      : refreshBadge();
 
   const scheduleBadgeRefresh = () => {
     if (badgeTimer) clearTimeout(badgeTimer);
@@ -721,6 +811,7 @@ export const useChatStore = () => {
         e.conversationId !== message.conversationId ||
         e.userId !== message.senderId.toLowerCase(),
     );
+    schedulePurgeTyping();
 
     // Đang cuộn lên trong chính hội thoại này thì đã có nút "tin mới" báo, không bật thêm thẻ nổi.
     if (!isWatching) alertIncoming(message);
@@ -1778,31 +1869,35 @@ export const useChatStore = () => {
     if (isSubscribed) return;
     isSubscribed = true;
 
-    onHubEvent(HubEvent.MessageReceived, (payload: ChatMessage) =>
+    const listen = (event: string, callback: (payload: any) => void) => {
+      teardowns.push(onHubEvent(event, callback));
+    };
+
+    listen(HubEvent.MessageReceived, (payload: ChatMessage) =>
       applyIncomingMessage(payload),
     );
-    onHubEvent(HubEvent.MessageUpdated, (payload: ChatMessage) =>
+    listen(HubEvent.MessageUpdated, (payload: ChatMessage) =>
       applyMessageChange(payload),
     );
-    onHubEvent(HubEvent.MessageDeleted, (payload: ChatMessage) =>
+    listen(HubEvent.MessageDeleted, (payload: ChatMessage) =>
       applyMessageChange(payload),
     );
 
-    onHubEvent(HubEvent.ReactionChanged, (payload: MessageReactionsChanged) =>
+    listen(HubEvent.ReactionChanged, (payload: MessageReactionsChanged) =>
       applyReactions(payload),
     );
-    onHubEvent(HubEvent.MessagePinChanged, (payload: MessagePinChanged) =>
+    listen(HubEvent.MessagePinChanged, (payload: MessagePinChanged) =>
       applyPinChanged(payload),
     );
 
-    onHubEvent(HubEvent.ConversationCreated, (payload: ChatConversation) =>
+    listen(HubEvent.ConversationCreated, (payload: ChatConversation) =>
       upsertConversation(payload),
     );
-    onHubEvent(HubEvent.ConversationUpdated, (payload: ChatConversation) =>
+    listen(HubEvent.ConversationUpdated, (payload: ChatConversation) =>
       upsertConversation(payload),
     );
 
-    onHubEvent(HubEvent.ParticipantsChanged, (payload: ChatConversation) => {
+    listen(HubEvent.ParticipantsChanged, (payload: ChatConversation) => {
       // Bị xoá hoặc tự rời nhóm: server vẫn gửi payload nhưng mình không còn trong danh sách.
       const stillMember = payload.participants.some(
         (p) => p.userId.toLowerCase() === currentUserId.value,
@@ -1811,15 +1906,15 @@ export const useChatStore = () => {
       else removeConversation(payload.id);
     });
 
-    onHubEvent(HubEvent.ConversationDissolved, (payload: ConversationDissolved) =>
+    listen(HubEvent.ConversationDissolved, (payload: ConversationDissolved) =>
       applyConversationDissolved(payload),
     );
 
-    onHubEvent(HubEvent.ConversationCleared, (payload: ConversationCleared) =>
+    listen(HubEvent.ConversationCleared, (payload: ConversationCleared) =>
       removeConversation(payload.conversationId),
     );
 
-    onHubEvent(HubEvent.ConversationRead, (payload: ConversationRead) => {
+    listen(HubEvent.ConversationRead, (payload: ConversationRead) => {
       const conversation = findConversation(payload.conversationId);
 
       // Đọc ở tab khác cũng phải tắt badge ở đây, kể cả khi chưa nạp danh sách.
@@ -1850,11 +1945,11 @@ export const useChatStore = () => {
       }
     });
 
-    onHubEvent(HubEvent.UserAvatarChanged, (payload: UserAvatarChanged) =>
+    listen(HubEvent.UserAvatarChanged, (payload: UserAvatarChanged) =>
       applyAvatarChanged(payload),
     );
 
-    onHubEvent(HubEvent.UserTyping, (payload: TypingSignal) => {
+    listen(HubEvent.UserTyping, (payload: TypingSignal) => {
       const userId = payload.userId.toLowerCase();
       const others = typingEntries.value.filter(
         (e) => e.conversationId !== payload.conversationId || e.userId !== userId,
@@ -1862,6 +1957,7 @@ export const useChatStore = () => {
 
       if (!payload.isTyping) {
         typingEntries.value = others;
+        schedulePurgeTyping();
         return;
       }
 
@@ -1875,19 +1971,24 @@ export const useChatStore = () => {
       ];
 
       // Hết hạn phải tự dọn: computed đọc Date.now() không chạy lại khi thời gian trôi.
-      setTimeout(purgeExpiredTyping, TYPING_TTL_MS + 100);
+      schedulePurgeTyping();
     });
 
     // Trong lúc rớt mạng event bị mất, nối lại phải nạp lại những gì đang hiển thị.
-    onHubReconnected(async () => {
-      await refreshBadge();
-      if (conversationsLoaded.value) await loadConversations();
-      for (const conversationId of [activeConversationId.value, sideConversationId.value]) {
-        if (!conversationId) continue;
-        await loadMessages(conversationId);
-        await loadPinnedMessages(conversationId);
-      }
-    });
+    teardowns.push(
+      onHubReconnected(async () => {
+        const ids = [activeConversationId.value, sideConversationId.value].filter(
+          (id): id is string => Boolean(id),
+        );
+
+        // Các lần nạp độc lập nhau nên chạy song song cho đỡ chờ nối đuôi.
+        await Promise.all([
+          refreshBadge(),
+          conversationsLoaded.value ? loadConversations() : null,
+          ...ids.flatMap((id) => [loadMessages(id), loadPinnedMessages(id)]),
+        ]);
+      }),
+    );
   };
 
   // ─── Vòng đời ───────────────────────────────────────────────────────────────
@@ -1901,31 +2002,72 @@ export const useChatStore = () => {
 
     isBooting.value = true;
     bootError.value = null;
+    const session = lifecycle;
 
     try {
       const res = await widgetApi.bootstrap();
+      if (session !== lifecycle) return;
       bootstrap.value = res.data.data;
       unreadFallback.value = res.data.data.unreadConversations;
       unreadMessagesFallback.value = res.data.data.unreadMessages ?? 0;
 
       if (!res.data.data.canUseChat) return;
 
-      watch(currentWindows, persistWindows);
+      teardowns.push(watch(currentWindows, persistWindows));
       void syncWindows();
 
       // Thu hẹp cửa sổ trình duyệt thì khung thứ hai không còn chỗ, gập nó thành avatar.
-      watch(fitsTwoWindows, (fits) => {
-        if (!fits && sideConversationId.value) minimizeSide();
-      });
+      teardowns.push(
+        watch(fitsTwoWindows, (fits) => {
+          if (!fits && sideConversationId.value) minimizeSide();
+        }),
+      );
 
       subscribe();
       await startHub(res.data.data.hubPath);
+      if (session !== lifecycle) return;
       presence.start(currentUserId.value);
     } catch (err) {
-      bootError.value = extractErrorMessage(err);
+      if (session === lifecycle) bootError.value = extractErrorMessage(err);
     } finally {
-      isBooting.value = false;
+      if (session === lifecycle) isBooting.value = false;
     }
+  };
+
+  /**
+   * Gỡ toàn bộ kết nối, listener, timer và dữ liệu của phiên hiện tại, để lần `init()` sau
+   * (đổi tài khoản trên cùng trang) bắt đầu sạch. Chỉ component gốc được gọi.
+   */
+  const dispose = () => {
+    lifecycle++;
+
+    teardowns.splice(0).forEach((teardown) => teardown());
+    isSubscribed = false;
+    void stopHub();
+    presence.stop();
+    messageAlerts.dispose();
+    stopViewportWatch();
+
+    for (const timer of [badgeTimer, typingTimer]) if (timer) clearTimeout(timer);
+    badgeTimer = null;
+    typingTimer = null;
+    badgeRefreshing = null;
+    badgeRefreshedAt = 0;
+    windowsSyncing = null;
+    sharedStamp = null;
+    isApplyingShared = false;
+    incomingOpening = Promise.resolve();
+
+    pendingReactionOps.clear();
+    reactionQueues.clear();
+    fetchingConversationIds.clear();
+    unclickedIds.clear();
+    countedUnreadIds.clear();
+    fetchedConversations.clear();
+    dissolvingIds.clear();
+    typingSentAt.clear();
+
+    resetState();
   };
 
   const openPanel = async () => {
@@ -2219,6 +2361,8 @@ export const useChatStore = () => {
     restoreMinimized,
     dismissMinimized,
     syncWindows,
+    refreshBadgeIfStale,
+    dispose,
     goBack,
     // dữ liệu
     conversations,

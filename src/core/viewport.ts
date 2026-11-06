@@ -11,6 +11,7 @@ const TWO_WINDOWS_QUERY = "(min-width: 900px)";
 
 /** Một listener cho mỗi media query, component nào gọi lại cũng dùng chung. */
 const mediaFlags = new Map<string, Ref<boolean>>();
+const mediaStops: Array<() => void> = [];
 
 const useMediaFlag = (query: string) => {
   let flag = mediaFlags.get(query);
@@ -22,7 +23,9 @@ const useMediaFlag = (query: string) => {
       const mediaQuery = window.matchMedia(query);
       const target = flag;
       target.value = mediaQuery.matches;
-      mediaQuery.addEventListener("change", (event) => (target.value = event.matches));
+      const onChange = (event: MediaQueryListEvent) => (target.value = event.matches);
+      mediaQuery.addEventListener("change", onChange);
+      mediaStops.push(() => mediaQuery.removeEventListener("change", onChange));
     }
   }
 
@@ -39,6 +42,7 @@ const PAGE_END_THRESHOLD = 8;
 
 const isAtPageEnd = ref(false);
 let isWatchingPageEnd = false;
+let pageEndObserver: ResizeObserver | null = null;
 
 const measurePageEnd = () => {
   const { scrollHeight } = document.documentElement;
@@ -63,10 +67,24 @@ export const useIsAtPageEnd = () => {
     measurePageEnd();
     window.addEventListener("scroll", measurePageEnd, { passive: true });
     window.addEventListener("resize", measurePageEnd);
-    new ResizeObserver(measurePageEnd).observe(document.body);
+    pageEndObserver = new ResizeObserver(measurePageEnd);
+    pageEndObserver.observe(document.body);
   }
 
   return readonly(isAtPageEnd);
+};
+
+/** Gỡ mọi listener đo viewport; lần gọi use* sau đó dựng lại từ đầu. */
+export const stopViewportWatch = () => {
+  mediaStops.splice(0).forEach((stop) => stop());
+  mediaFlags.clear();
+
+  if (!isWatchingPageEnd) return;
+  isWatchingPageEnd = false;
+  window.removeEventListener("scroll", measurePageEnd);
+  window.removeEventListener("resize", measurePageEnd);
+  pageEndObserver?.disconnect();
+  pageEndObserver = null;
 };
 
 let savedScrollY = 0;

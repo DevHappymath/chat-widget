@@ -35,7 +35,8 @@ const {
   init,
   togglePanel,
   collapseAll,
-  refreshBadge,
+  refreshBadgeIfStale,
+  dispose,
   markRead,
   isAtBottom,
   minimizedConversations,
@@ -114,7 +115,7 @@ watch(tabUnread, (count) => setTabUnread(count));
 const onVisibilityChange = () => {
   if (document.visibilityState !== "visible") return;
 
-  refreshBadge();
+  refreshBadgeIfStale();
   syncWindows();
   if (!isPanelOpen.value) return;
 
@@ -146,6 +147,8 @@ onBeforeUnmount(() => {
   document.removeEventListener("visibilitychange", onVisibilityChange);
   window.removeEventListener("focus", onWindowFocus);
   stopTabAttention();
+  // Chỉ component gốc dọn: các component con bị gỡ trong lúc widget còn sống thì không được đụng tới.
+  dispose();
 });
 </script>
 

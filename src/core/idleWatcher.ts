@@ -10,6 +10,7 @@ let isStarted = false;
 let isIdle = false;
 let lastActivityAt = Date.now();
 let onChange: ((isIdle: boolean) => void) | null = null;
+let checkTimer: ReturnType<typeof setInterval> | null = null;
 
 const setIdle = (next: boolean) => {
   if (isIdle === next) return;
@@ -38,9 +39,26 @@ export const startIdleWatch = (callback: (isIdle: boolean) => void) => {
   }
   document.addEventListener("visibilitychange", onVisibilityChange);
 
-  setInterval(() => {
+  checkTimer = setInterval(() => {
     if (Date.now() - lastActivityAt >= IDLE_AFTER_MS) setIdle(true);
   }, CHECK_INTERVAL_MS);
+};
+
+/** Gỡ listener và interval để lần start sau chạy lại từ đầu, không dính trạng thái của phiên cũ. */
+export const stopIdleWatch = () => {
+  if (!isStarted) return;
+  isStarted = false;
+
+  for (const event of ACTIVITY_EVENTS) {
+    window.removeEventListener(event, markActive, { capture: true });
+  }
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+
+  if (checkTimer) clearInterval(checkTimer);
+  checkTimer = null;
+  onChange = null;
+  isIdle = false;
+  lastActivityAt = Date.now();
 };
 
 export const isUserIdle = () => isIdle;

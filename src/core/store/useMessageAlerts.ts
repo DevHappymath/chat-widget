@@ -35,16 +35,23 @@ const schedule = (conversationId: string) => {
   timers.set(conversationId, setTimeout(() => dismiss(conversationId), ALERT_DURATION_MS));
 };
 
+const onVisibilityChange = () => {
+  if (document.visibilityState !== "visible") return;
+  alerts.value.forEach((a) => {
+    if (!timers.has(a.conversationId)) schedule(a.conversationId);
+  });
+};
+
 const watchVisibility = () => {
   if (isWatchingVisibility) return;
   isWatchingVisibility = true;
+  document.addEventListener("visibilitychange", onVisibilityChange);
+};
 
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState !== "visible") return;
-    alerts.value.forEach((a) => {
-      if (!timers.has(a.conversationId)) schedule(a.conversationId);
-    });
-  });
+const clearAll = () => {
+  timers.forEach((timer) => clearTimeout(timer));
+  timers.clear();
+  alerts.value = [];
 };
 
 /**
@@ -73,10 +80,13 @@ export const useMessageAlerts = () => {
     /** Rê chuột vào thẻ thì giữ lại để đọc cho hết. */
     pause: clearTimer,
     resume: schedule,
-    clear: () => {
-      timers.forEach((timer) => clearTimeout(timer));
-      timers.clear();
-      alerts.value = [];
+    clear: clearAll,
+    /** Dọn thẻ và gỡ listener khi widget bị gỡ; lần push sau đăng ký lại. */
+    dispose: () => {
+      clearAll();
+      if (!isWatchingVisibility) return;
+      isWatchingVisibility = false;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     },
   };
 };

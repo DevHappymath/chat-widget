@@ -115,6 +115,38 @@ export const groupChatMessages = (
   return days;
 };
 
+const isSameCluster = (a: MessageCluster, b: MessageCluster) =>
+  a.senderId === b.senderId &&
+  a.senderName === b.senderName &&
+  a.isSystem === b.isSystem &&
+  a.isOwn === b.isOwn &&
+  a.messages.length === b.messages.length &&
+  a.messages.every((message, index) => message === b.messages[index]);
+
+/**
+ * Trả về hàm thay cụm vừa dựng bằng object cụm cũ khi nội dung không đổi. groupChatMessages
+ * luôn dựng object mới nên thiếu bước này thì mỗi tin đến làm cả khung chat render lại.
+ */
+export const createClusterCache = () => {
+  let previous = new Map<string, MessageCluster>();
+
+  return (days: MessageDayGroup[]): MessageDayGroup[] => {
+    const next = new Map<string, MessageCluster>();
+
+    for (const day of days) {
+      day.clusters = day.clusters.map((cluster) => {
+        const old = previous.get(cluster.key);
+        const kept = old && isSameCluster(old, cluster) ? old : cluster;
+        next.set(cluster.key, kept);
+        return kept;
+      });
+    }
+
+    previous = next;
+    return days;
+  };
+};
+
 /** Chữ cái viết tắt cho avatar, lấy tối đa 2 từ cuối để "Đặng Thu Thảo" ra "TT". */
 export const nameInitials = (name: string): string =>
   name

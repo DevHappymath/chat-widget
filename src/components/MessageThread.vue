@@ -4,7 +4,7 @@ import { MAX_ATTACHMENTS_PER_MESSAGE } from "../constants/attachment";
 import { useChatStore } from "../core/store/useChatStore";
 import { PresenceStatus, type Sticker, type UploadedFile } from "../types/chat";
 import { hasDraggedFiles } from "../utils/attachment";
-import { groupChatMessages, presenceLabel } from "../utils/chat";
+import { createClusterCache, groupChatMessages, presenceLabel } from "../utils/chat";
 import { formatBytes } from "../utils/format";
 import MessageCluster from "./MessageCluster.vue";
 import MessageComposer from "./MessageComposer.vue";
@@ -133,8 +133,10 @@ const firstUnreadSequence = computed(() => {
   return list[index].sequence;
 });
 
+const reuseClusters = createClusterCache();
+
 const dayGroups = computed(() =>
-  groupChatMessages(messages.value, currentUserId.value, firstUnreadSequence.value),
+  reuseClusters(groupChatMessages(messages.value, currentUserId.value, firstUnreadSequence.value)),
 );
 
 const lastOwnClusterKey = computed(() => {
