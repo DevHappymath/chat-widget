@@ -593,14 +593,15 @@ export const useChatStore = () => {
       .map((e) => e.userId);
   };
 
-  const typingNamesOf = (conversation: ChatConversation | null) => {
+  const typingParticipantsOf = (conversation: ChatConversation | null) => {
     if (!conversation) return [];
 
     const typingIds = new Set(typingUserIdsOf(conversation.id));
-    return conversation.participants
-      .filter((p) => typingIds.has(p.userId.toLowerCase()))
-      .map((p) => p.fullName || p.email || "Ai đó");
+    return conversation.participants.filter((p) => typingIds.has(p.userId.toLowerCase()));
   };
+
+  const typingNamesOf = (conversation: ChatConversation | null) =>
+    typingParticipantsOf(conversation).map((p) => p.fullName || p.email || "Ai đó");
 
   // ─── Badge ──────────────────────────────────────────────────────────────────
 
@@ -2372,6 +2373,7 @@ export const useChatStore = () => {
     sideConversation,
     sideConversationId,
     messagesOf,
+    typingParticipantsOf,
     typingNamesOf,
     hasMoreOf,
     draft,

@@ -10,6 +10,8 @@ import MessageCluster from "./MessageCluster.vue";
 import MessageComposer from "./MessageComposer.vue";
 import PresenceDot from "./PresenceDot.vue";
 import PinnedBar from "./PinnedBar.vue";
+import TypingDots from "./TypingDots.vue";
+import TypingIndicator from "./TypingIndicator.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -25,6 +27,7 @@ const {
   currentUserId,
   conversations,
   messagesOf,
+  typingParticipantsOf,
   typingNamesOf,
   hasMoreOf,
   isLoadingMessagesOf,
@@ -144,6 +147,8 @@ const lastOwnClusterKey = computed(() => {
   return clusters.filter((c) => c.isOwn && !c.isSystem).at(-1)?.key ?? null;
 });
 
+const typingParticipants = computed(() => typingParticipantsOf(conversation.value));
+
 const typingLabel = computed(() => {
   const names = typingNamesOf(conversation.value);
   if (!names.length) return "";
@@ -160,6 +165,19 @@ const UNREAD_DIVIDER_OFFSET_PX = 40;
 /** Tin mới đến trong lúc đang cuộn lên; cuộn xuống đáy là đã đọc nên số này về 0. */
 const newMessageCount = computed(() =>
   isThreadAtBottom.value ? 0 : (conversation.value?.unreadCount ?? 0),
+);
+
+// Bong bóng đang soạn ở cuối khung bị khuất khi cuộn lên, nên báo luôn trên nút cuộn xuống.
+const showJumpToBottom = computed(() => !isThreadAtBottom.value && dayGroups.value.length > 0);
+
+const jumpToBottomLabel = computed(() =>
+  [
+    typingLabel.value.replace(/\.+$/, ""),
+    newMessageCount.value > 0 ? `${newMessageCount.value} tin mới` : "",
+    "Cuộn xuống tin mới nhất",
+  ]
+    .filter(Boolean)
+    .join(". "),
 );
 
 const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
@@ -242,6 +260,16 @@ watch(
     }
   },
   { immediate: true },
+);
+
+// Bong bóng đang soạn nằm cuối danh sách tin nên đẩy nội dung lên; đang ở đáy thì phải theo xuống.
+watch(
+  () => typingParticipants.value.length > 0,
+  async (isTyping) => {
+    if (!isTyping || !isThreadAtBottom.value) return;
+    await nextTick();
+    scrollToBottom("smooth");
+  },
 );
 
 // ─── Kéo thả tệp ──────────────────────────────────────────────────────────────
@@ -423,6 +451,20 @@ const onLoadOlder = async () => {
             />
           </template>
         </div>
+
+        <Transition
+          enter-active-class="transition duration-150 ease-out motion-reduce:transition-none"
+          enter-from-class="translate-y-1.5 opacity-0"
+          leave-active-class="transition duration-150 ease-in motion-reduce:transition-none"
+          leave-to-class="translate-y-1.5 opacity-0"
+        >
+          <TypingIndicator
+            v-if="typingParticipants.length"
+            :participants="typingParticipants"
+            :show-name="group"
+            class="pt-3"
+          />
+        </Transition>
       </div>
 
       <Transition
@@ -432,13 +474,22 @@ const onLoadOlder = async () => {
         leave-to-class="translate-y-1.5 opacity-0"
       >
         <button
-          v-if="newMessageCount > 0"
+          v-if="showJumpToBottom"
           type="button"
-          class="absolute bottom-2.5 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-chat-accent px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-chat-accent/25 transition-colors hover:bg-chat-accent-strong"
+          class="absolute bottom-2.5 left-1/2 z-10 inline-flex h-8 min-w-8 -translate-x-1/2 items-center justify-center gap-1.5 rounded-full text-xs font-semibold shadow-lg transition-colors"
+          :class="
+            newMessageCount > 0
+              ? 'bg-chat-accent px-3 text-white shadow-chat-accent/25 hover:bg-chat-accent-strong'
+              : 'border border-gray-200 bg-white px-2.5 text-gray-500 shadow-gray-900/10 hover:bg-gray-50 hover:text-gray-700'
+          "
+          :aria-label="jumpToBottomLabel"
           @click="scrollToBottom('smooth')"
         >
-          <WidgetIcon name="ArrowDown" :size="14" />
-          {{ newMessageCount > 99 ? "99+" : newMessageCount }} tin mới
+          <TypingDots v-if="typingLabel" class="mx-0.5" />
+          <WidgetIcon v-else name="ArrowDown" :size="14" />
+          <span v-if="newMessageCount > 0">
+            {{ newMessageCount > 99 ? "99+" : newMessageCount }} tin mới
+          </span>
         </button>
       </Transition>
     </div>
