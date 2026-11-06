@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { REACTION_EMOJIS } from "../constants/reaction";
 import { useChatStore } from "../core/store/useChatStore";
 import { useWidgetConfirm } from "../core/store/useWidgetConfirm";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import { useIsWideViewport } from "../core/viewport";
-import EmojiPicker from "./EmojiPicker.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+
+const EmojiPicker = defineAsyncComponent(() => import("./EmojiPicker.vue"));
 
 const {
   actionSheetMessage,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from "vue";
 import { MAX_ATTACHMENTS_PER_MESSAGE } from "../constants/attachment";
 import { fileApi } from "../core/services";
 import { useChatStore } from "../core/store/useChatStore";
@@ -16,10 +16,11 @@ import {
 } from "../utils/chat";
 import { extractErrorMessage } from "../utils/error";
 import { formatBytes } from "../utils/format";
-import EmojiPicker from "./EmojiPicker.vue";
-import StickerPicker from "./StickerPicker.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+
+const EmojiPicker = defineAsyncComponent(() => import("./EmojiPicker.vue"));
+const StickerPicker = defineAsyncComponent(() => import("./StickerPicker.vue"));
 
 const props = withDefaults(
   defineProps<{

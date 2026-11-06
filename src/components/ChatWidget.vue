@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, watch } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import { configureChatWidget, type ChatWidgetConfig } from "../core/config";
 import { useChatStore } from "../core/store/useChatStore";
 import { setTabUnread, startTabAttention, stopTabAttention } from "../core/tabAttention";
@@ -11,12 +11,13 @@ import {
   useIsWideViewport,
 } from "../core/viewport";
 import ChatPanel from "./ChatPanel.vue";
-import ImageViewer from "./ImageViewer.vue";
 import MessageActionSheet from "./MessageActionSheet.vue";
 import MessageAlerts from "./MessageAlerts.vue";
 import MinimizedChats from "./MinimizedChats.vue";
 import SideChatWindow from "./SideChatWindow.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+
+const ImageViewer = defineAsyncComponent(() => import("./ImageViewer.vue"));
 
 const props = defineProps<{ config: ChatWidgetConfig }>();
 
