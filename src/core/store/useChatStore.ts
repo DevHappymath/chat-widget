@@ -1,4 +1,4 @@
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, shallowRef, watch } from "vue";
 import {
   FALLBACK_ALLOWED_EXTENSIONS,
   FALLBACK_MAX_ATTACHMENT_SIZE_BYTES,
@@ -150,6 +150,24 @@ const bootError = ref<string | null>(null);
 
 const conversations = ref<ChatConversation[]>([]);
 const conversationsLoaded = ref(false);
+
+/** Ảnh đại diện theo userId, gom từ thành viên mọi hội thoại đã nạp. */
+const avatarByUserId = shallowRef<Record<string, string>>({});
+
+// Dựng lại thủ công thay vì computed: tin mới nào cũng thay hội thoại nên computed sẽ quét lại toàn bộ.
+const rebuildAvatarMap = () => {
+  const map: Record<string, string> = {};
+  for (const conversation of conversations.value) {
+    for (const participant of conversation.participants) {
+      if (participant.avatarUrl) map[participant.userId.toLowerCase()] = participant.avatarUrl;
+    }
+  }
+  avatarByUserId.value = map;
+};
+
+const sameAvatarMembers = (a: ChatParticipant[], b: ChatParticipant[]) =>
+  a.length === b.length &&
+  a.every((p, i) => p.userId === b[i].userId && p.avatarUrl === b[i].avatarUrl);
 /** Hội thoại đang được tải về vì có tin đến mà chưa có trong danh sách, tránh tải trùng khi tin dồn dập. */
 const fetchingConversationIds = new Set<string>();
 const messagesByConversation = ref<Record<string, ChatMessage[]>>({});
@@ -265,6 +283,7 @@ const resetState = () => {
   isBooting.value = false;
   bootError.value = null;
   conversations.value = [];
+  avatarByUserId.value = {};
   conversationsLoaded.value = false;
   messagesByConversation.value = {};
   hasMoreByConversation.value = {};
@@ -364,17 +383,6 @@ export const useChatStore = () => {
           (p) => p.userId.toLowerCase() !== currentUserId.value,
         );
 
-  /** Ảnh đại diện theo userId, gom từ thành viên mọi hội thoại đã nạp. */
-  const avatarByUserId = computed(() => {
-    const map: Record<string, string> = {};
-    for (const conversation of conversations.value) {
-      for (const participant of conversation.participants) {
-        if (participant.avatarUrl) map[participant.userId.toLowerCase()] = participant.avatarUrl;
-      }
-    }
-    return map;
-  });
-
   const avatarOf = (userId?: string | null) =>
     (userId && avatarByUserId.value[userId.toLowerCase()]) || null;
 
@@ -395,6 +403,8 @@ export const useChatStore = () => {
         conversation.avatarUrl = payload.avatarUrl;
       }
     }
+
+    rebuildAvatarMap();
 
     if (draft.value?.userId.toLowerCase() === userId) {
       draft.value = { ...draft.value, avatarUrl: payload.avatarUrl };
@@ -434,12 +444,19 @@ export const useChatStore = () => {
    * Lặp lại đúng thứ tự backend dùng: ghim trước, rồi tới tin mới nhất. Tin đến qua hub và
    * thao tác ghim đều đổi vị trí mà không gọi lại API danh sách.
    */
-  const sortedConversations = computed(() =>
-    [...conversations.value].sort((a, b) => {
-      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-      return lastActivityAt(b) - lastActivityAt(a);
-    }),
-  );
+  const sortedConversations = computed(() => {
+    // Parse ngày một lần cho mỗi hội thoại thay vì mỗi lần so sánh; sort ổn định nên thứ tự hoà giữ nguyên.
+    const keyed = conversations.value.map((conversation) => ({
+      conversation,
+      pinned: conversation.isPinned,
+      at: lastActivityAt(conversation),
+    }));
+    keyed.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.at - a.at;
+    });
+    return keyed.map((k) => k.conversation);
+  });
 
   const filteredConversations = computed(() =>
     sortedConversations.value.filter((conversation) => {
@@ -659,12 +676,19 @@ export const useChatStore = () => {
     const index = conversations.value.findIndex((c) => c.id === conversation.id);
 
     // Vị trí do sortedConversations quyết định nên chỉ cần thay hoặc thêm vào cuối.
-    if (index >= 0) conversations.value.splice(index, 1, conversation);
-    else conversations.value.push(conversation);
+    if (index >= 0) {
+      const previous = conversations.value[index];
+      conversations.value.splice(index, 1, conversation);
+      if (!sameAvatarMembers(previous.participants, conversation.participants)) rebuildAvatarMap();
+    } else {
+      conversations.value.push(conversation);
+      rebuildAvatarMap();
+    }
   };
 
   const removeConversation = (conversationId: string) => {
     conversations.value = conversations.value.filter((c) => c.id !== conversationId);
+    rebuildAvatarMap();
     minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
     delete messagesByConversation.value[conversationId];
     delete replyingByConversation.value[conversationId];
@@ -894,6 +918,7 @@ export const useChatStore = () => {
         pageSize: 50,
       });
       conversations.value = res.data.data.items ?? [];
+      rebuildAvatarMap();
       conversationsLoaded.value = true;
     } catch (err) {
       toast.error(extractErrorMessage(err));
