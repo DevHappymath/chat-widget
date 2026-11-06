@@ -5,6 +5,8 @@
 
 /* Class của widget nằm trong node_modules nên Tailwind không tự quét, phải khai báo tường minh. */
 @source "./**/*.{vue,ts}";
+/* Toàn chuỗi tiếng Việt, không có class nào; quét chỉ tốn thời gian build của site. */
+@source not "./constants/emoji-keywords.ts";
 
 @theme {
   /* Đổi hai biến này ở site chủ là widget đổi theo màu thương hiệu của site đó. */
