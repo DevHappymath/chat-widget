@@ -319,6 +319,8 @@ export interface UpdateGroupConversationCommand {
 
 export interface AddParticipantsCommand {
   userIds: string[];
+  /** Tắt thì người được thêm chỉ thấy tin nhắn từ lúc vào nhóm; bỏ trống coi như bật. */
+  shareHistory?: boolean;
 }
 
 /** Chỉ bổ nhiệm hoặc bỏ chức phó nhóm; trưởng nhóm không đổi qua đường này. */

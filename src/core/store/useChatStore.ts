@@ -1397,11 +1397,11 @@ export const useChatStore = () => {
   };
 
   /** Chỉ trưởng hoặc phó nhóm gọi được; backend chặn lại bằng LoadGroupForManagerAsync. */
-  const addParticipants = async (userIds: string[]) => {
+  const addParticipants = async (userIds: string[], shareHistory = true) => {
     const conversationId = activeConversationId.value;
     if (!conversationId || !userIds.length) return;
 
-    const res = await conversationApi.addParticipants(conversationId, { userIds });
+    const res = await conversationApi.addParticipants(conversationId, { userIds, shareHistory });
     upsertConversation(res.data.data);
   };
 
