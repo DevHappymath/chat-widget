@@ -4,6 +4,7 @@ import { PresenceStatus } from "../types/chat";
 import { avatarTone, nameInitials } from "../utils/chat";
 import PresenceDot from "./PresenceDot.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 type AvatarSize = "xs" | "sm" | "md" | "lg";
 
@@ -62,7 +63,7 @@ const tone = computed(() =>
       v-else
       class="flex select-none items-center justify-center rounded-full font-semibold"
       :class="[SIZE_CLASSES[size], tone]"
-      :title="name"
+      v-tooltip="name"
     >
       <WidgetIcon v-if="variant === 'group'" name="Users" :size="ICON_SIZES[size]" />
       <template v-else>{{ nameInitials(name) }}</template>

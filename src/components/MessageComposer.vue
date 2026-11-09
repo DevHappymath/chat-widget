@@ -18,6 +18,7 @@ import { extractErrorMessage } from "../utils/error";
 import { formatBytes } from "../utils/format";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const EmojiPicker = defineAsyncComponent(() => import("./EmojiPicker.vue"));
 const StickerPicker = defineAsyncComponent(() => import("./StickerPicker.vue"));
@@ -459,7 +460,7 @@ defineExpose({ focus, addFiles });
         type="button"
         class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
         aria-label="Đính kèm tệp"
-        :title="`Đính kèm tệp hoặc kéo thả vào khung chat, tối đa ${formatBytes(attachmentRule.maxSizeBytes, 0)} mỗi tệp`"
+        v-tooltip="`Đính kèm tệp hoặc kéo thả vào khung chat, tối đa ${formatBytes(attachmentRule.maxSizeBytes, 0)} mỗi tệp`"
         @click="fileInput?.click()"
       >
         <WidgetIcon name="Paperclip" :size="18" />
@@ -504,7 +505,7 @@ defineExpose({ focus, addFiles });
             ? 'bg-chat-accent/10 text-chat-accent-strong'
             : 'text-gray-500 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
         "
-        title="Biểu tượng và nhãn dán"
+        v-tooltip="'Biểu tượng và nhãn dán'"
         aria-label="Biểu tượng và nhãn dán"
         :aria-expanded="isEmojiPickerOpen"
         @click="isEmojiPickerOpen = !isEmojiPickerOpen"
@@ -522,7 +523,7 @@ defineExpose({ focus, addFiles });
         "
         :disabled="!canSend"
         aria-label="Gửi tin nhắn"
-        title="Gửi tin nhắn (Enter)"
+        v-tooltip="'Gửi tin nhắn (Enter)'"
         @click="submit"
       >
         <WidgetIcon name="ArrowUp" :size="18" />

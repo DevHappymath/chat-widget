@@ -17,6 +17,7 @@ import DurationChips from "./DurationChips.vue";
 import PresenceDot from "./PresenceDot.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 /**
  * Bảng đặt trạng thái và lời nhắn của chính mình. Nơi gọi lo vị trí và lúc đóng; chọn trạng thái
@@ -243,7 +244,7 @@ const clearMessage = () => run(() => setPresenceMessage({ message: null }));
           type="button"
           class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:opacity-60"
           aria-label="Xoá lời nhắn trạng thái"
-          title="Xoá lời nhắn"
+          v-tooltip="'Xoá lời nhắn'"
           :disabled="isSaving"
           @click="clearMessage"
         >

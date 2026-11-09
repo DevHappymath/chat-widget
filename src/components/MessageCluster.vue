@@ -22,6 +22,7 @@ import { formatBytes, formatDateISO, formatDateTime, formatTime } from "../utils
 import StickerMedia from "./StickerMedia.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const props = defineProps<{
   cluster: MessageCluster;
@@ -374,7 +375,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                       : 'bg-gray-100 text-gray-900'
                 "
               >
-                <p v-if="message.isDeleted" :title="`Thu hồi lúc ${formatDateTime(message.deletedAtUtc || '')}`">
+                <p v-if="message.isDeleted" v-tooltip="`Thu hồi lúc ${formatDateTime(message.deletedAtUtc || '')}`">
                   Tin nhắn đã bị thu hồi
                 </p>
 
@@ -464,7 +465,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                   v-if="message.sticker"
                   :sticker="message.sticker"
                   :alt="`Nhãn dán ${message.sticker.name}`"
-                  :title="message.sticker.name"
+                  v-tooltip="message.sticker.name"
                   width="120"
                   height="120"
                   class="size-30"
@@ -505,7 +506,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                       type="button"
                       class="absolute right-1.5 top-1.5 inline-flex h-7 w-7 items-center justify-center rounded-full bg-gray-900/60 text-white opacity-0 transition-opacity hover:bg-gray-900/80 focus-visible:opacity-100 group-hover/img:opacity-100 chat-touch:hidden"
                       :aria-label="`Tải ${file.fileName} về máy`"
-                      :title="`Tải ${file.fileName} về máy`"
+                      v-tooltip="`Tải ${file.fileName} về máy`"
                       :disabled="isDownloading(file.fileUrl)"
                       @click="downloadFile(file.fileUrl, file.fileName)"
                     >
@@ -526,7 +527,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                       target="_blank"
                       rel="noopener"
                       class="flex min-w-0 flex-1 items-center gap-2.5"
-                      :title="
+                      v-tooltip="
                         isPreviewableInBrowser(file.contentType)
                           ? `Mở ${file.fileName}`
                           : `Tải ${file.fileName} về máy`
@@ -551,7 +552,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                       type="button"
                       class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong disabled:cursor-wait"
                       :aria-label="`Tải ${file.fileName} về máy`"
-                      :title="`Tải ${file.fileName} về máy`"
+                      v-tooltip="`Tải ${file.fileName} về máy`"
                       :disabled="isDownloading(file.fileUrl)"
                       @click="downloadFile(file.fileUrl, file.fileName)"
                     >
@@ -599,7 +600,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                     : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
                   poppedKey === reactionKey(message, reaction.emoji) && 'reaction-pop',
                 ]"
-                :title="reactionTooltip(reaction.userIds)"
+                v-tooltip="reactionTooltip(reaction.userIds)"
                 @click="react(message, reaction.emoji)"
                 @animationend="poppedKey = null"
               >
@@ -623,7 +624,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
               <button
                 type="button"
                 class="inline-flex h-full items-center rounded-full border border-dashed border-gray-300 bg-white px-2 py-0.5 text-gray-500 transition-colors hover:border-chat-accent/40 hover:bg-chat-accent/5 hover:text-chat-accent-strong"
-                title="Thả thêm biểu tượng"
+                v-tooltip="'Thả thêm biểu tượng'"
                 aria-label="Thả thêm biểu tượng"
                 @click="openEmojiPickerFromButton($event, message)"
               >
@@ -644,7 +645,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
         <p
           v-if="message.editedAtUtc && !message.isDeleted"
           class="mt-0.5 flex items-center gap-1 px-1 text-[11px] text-gray-500"
-          :title="formatDateTime(message.editedAtUtc)"
+          v-tooltip="formatDateTime(message.editedAtUtc)"
         >
           <WidgetIcon name="Pencil" :size="10" />
           Đã chỉnh sửa {{ editedAtLabel(message) }}
@@ -654,7 +655,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
       <!-- Cả cụm chỉ hiện một mốc giờ, lấy theo tin cuối cùng trong cụm. -->
       <p
         class="flex items-center gap-1 px-1 text-[11px] text-gray-500"
-        :title="formatDateTime(lastMessage.createdAtUtc)"
+        v-tooltip="formatDateTime(lastMessage.createdAtUtc)"
       >
         {{ formatTime(lastMessage.createdAtUtc) }}
         <WidgetIcon

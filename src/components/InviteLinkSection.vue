@@ -5,6 +5,7 @@ import { useWidgetConfirm } from "../core/store/useWidgetConfirm";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import { extractErrorMessage } from "../utils/error";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const { activeConversation, canManageGroup, createInviteLink, revokeInviteLink } = useChatStore();
 
@@ -198,7 +199,7 @@ onBeforeUnmount(() => {
           <WidgetIcon name="Link" :size="15" />
         </span>
 
-        <button type="button" class="group min-w-0 flex-1 text-left" :title="shareText" @click="onCopy">
+        <button type="button" class="group min-w-0 flex-1 text-left" v-tooltip="shareText" @click="onCopy">
           <span
             class="block truncate font-mono text-xs text-gray-800 transition-colors group-hover:text-chat-accent-strong"
           >
@@ -221,7 +222,7 @@ onBeforeUnmount(() => {
               ? 'bg-emerald-50 text-emerald-600'
               : 'text-gray-500 hover:bg-chat-accent/10 hover:text-chat-accent-strong'
           "
-          :title="isCopied ? 'Đã sao chép' : 'Sao chép liên kết'"
+          v-tooltip="isCopied ? 'Đã sao chép' : 'Sao chép liên kết'"
           aria-label="Sao chép liên kết"
           @click="onCopy"
         >

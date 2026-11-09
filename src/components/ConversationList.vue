@@ -5,6 +5,7 @@ import { debounce } from "../utils/debounce";
 import ConversationRow from "./ConversationRow.vue";
 import GlobalSearchResults from "./GlobalSearchResults.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const {
   filter,
@@ -120,7 +121,7 @@ const emptyHint = computed(() => {
               : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
           "
           :aria-label="isSearchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'"
-          :title="isSearchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'"
+          v-tooltip="isSearchOpen ? 'Đóng tìm kiếm' : 'Tìm kiếm'"
           :aria-expanded="isSearchOpen"
           @click="toggleSearch"
         >

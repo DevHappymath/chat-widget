@@ -19,6 +19,7 @@ import PresenceMenu from "./PresenceMenu.vue";
 import PresenceStatusDialog from "./PresenceStatusDialog.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 import WidgetToaster from "./WidgetToaster.vue";
+import { vTooltip } from "../core/tooltip";
 
 const {
   view,
@@ -98,7 +99,7 @@ const subheading = computed(() => {
           class="-mx-1 flex max-w-full items-center gap-1.5 rounded-full px-1 text-xs font-medium text-white transition-colors hover:bg-white/15"
           :aria-expanded="isPresenceMenuOpen"
           aria-haspopup="dialog"
-          :title="currentUserName"
+          v-tooltip="currentUserName"
           @click="isPresenceMenuOpen = !isPresenceMenuOpen"
         >
           <PresenceDot :status="myPresence.status" class="h-2.5 w-2.5 shrink-0 ring-2 ring-white" />
@@ -115,7 +116,7 @@ const subheading = computed(() => {
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
         aria-label="Tin nhắn mới"
-        title="Tin nhắn mới"
+        v-tooltip="'Tin nhắn mới'"
         @click="view = 'contacts'"
       >
         <WidgetIcon name="SquarePen" :size="17" />
@@ -126,7 +127,7 @@ const subheading = computed(() => {
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
         aria-label="Thu nhỏ hội thoại"
-        title="Thu nhỏ hội thoại"
+        v-tooltip="'Thu nhỏ hội thoại'"
         @click="minimizeConversation"
       >
         <WidgetIcon name="Minus" :size="18" />

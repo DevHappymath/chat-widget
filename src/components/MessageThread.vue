@@ -14,6 +14,7 @@ import TypingDots from "./TypingDots.vue";
 import TypingIndicator from "./TypingIndicator.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const props = defineProps<{
   /** null là bản nháp với người vừa chọn ở danh bạ, chỉ có ở khung chính. */
@@ -354,7 +355,7 @@ const onLoadOlder = async () => {
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
           aria-label="Tìm trong hội thoại"
-          title="Tìm trong hội thoại"
+          v-tooltip="'Tìm trong hội thoại'"
           @click="openScreen('search')"
         >
           <WidgetIcon name="Search" :size="17" />
@@ -369,7 +370,7 @@ const onLoadOlder = async () => {
               : 'text-gray-500 hover:text-chat-accent-strong'
           "
           :aria-label="conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
-          :title="conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
+          v-tooltip="conversation.isMuted ? 'Bật thông báo' : 'Tắt thông báo'"
           @click="toggleMute(conversation.id)"
         >
           <WidgetIcon :name="conversation.isMuted ? 'BellOff' : 'Bell'" :size="17" />
@@ -379,7 +380,7 @@ const onLoadOlder = async () => {
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
           :aria-label="group ? 'Thông tin nhóm' : 'Thông tin hội thoại'"
-          :title="group ? 'Thông tin nhóm' : 'Thông tin hội thoại'"
+          v-tooltip="group ? 'Thông tin nhóm' : 'Thông tin hội thoại'"
           @click="openScreen('info')"
         >
           <WidgetIcon name="Info" :size="17" />

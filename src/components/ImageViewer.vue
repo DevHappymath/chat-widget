@@ -6,6 +6,7 @@ import { useImageViewer } from "../core/store/useImageViewer";
 import { lockPageScroll, unlockPageScroll } from "../core/viewport";
 import { formatDateTime } from "../utils/format";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const { images, index, isOpen, current, close, goTo, next, prev } = useImageViewer();
 const { activeConversationId, revealMessage } = useChatStore();
@@ -272,7 +273,7 @@ const NAV_BUTTON =
               type="button"
               :class="[ACTION_BUTTON, 'hidden sm:inline-flex']"
               aria-label="Thu nhỏ"
-              title="Thu nhỏ"
+              v-tooltip="'Thu nhỏ'"
               :disabled="!isZoomed"
               @click="zoomOut"
             >
@@ -282,7 +283,7 @@ const NAV_BUTTON =
               type="button"
               :class="[ACTION_BUTTON, 'hidden sm:inline-flex']"
               aria-label="Phóng to"
-              title="Phóng to"
+              v-tooltip="'Phóng to'"
               :disabled="scale >= MAX_SCALE || !isLoaded"
               @click="zoomIn"
             >
@@ -292,7 +293,7 @@ const NAV_BUTTON =
               type="button"
               :class="ACTION_BUTTON"
               aria-label="Tải ảnh về máy"
-              title="Tải ảnh về máy"
+              v-tooltip="'Tải ảnh về máy'"
               :disabled="isDownloading"
               @click="download"
             >
@@ -306,7 +307,7 @@ const NAV_BUTTON =
               type="button"
               :class="ACTION_BUTTON"
               aria-label="Mở tin nhắn đã gửi ảnh này"
-              title="Mở tin nhắn đã gửi ảnh này"
+              v-tooltip="'Mở tin nhắn đã gửi ảnh này'"
               @click="goToMessage"
             >
               <WidgetIcon name="MessageSquareText" :size="18" />
@@ -315,7 +316,7 @@ const NAV_BUTTON =
               type="button"
               :class="ACTION_BUTTON"
               aria-label="Đóng"
-              title="Đóng (Esc)"
+              v-tooltip="'Đóng (Esc)'"
               @click="close"
             >
               <WidgetIcon name="X" :size="20" />

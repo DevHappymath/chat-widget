@@ -5,6 +5,7 @@ import type { ChatConversation } from "../types/chat";
 import { chatListTimestamp, messagePreview } from "../utils/chat";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const props = defineProps<{ conversation: ChatConversation }>();
 defineEmits<{ select: [id: string] }>();
@@ -107,7 +108,7 @@ const timestamp = computed(
             : 'text-gray-400 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 chat-touch:opacity-100'
         "
         :aria-label="conversation.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'"
-        :title="conversation.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'"
+        v-tooltip="conversation.isPinned ? 'Bỏ ghim hội thoại' : 'Ghim hội thoại'"
         @click="togglePin(conversation.id)"
       >
         <WidgetIcon

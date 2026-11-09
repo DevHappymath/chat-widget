@@ -6,6 +6,7 @@ import { useWidgetConfirm } from "../core/store/useWidgetConfirm";
 import type { ChatConversation, ChatMessage } from "../types/chat";
 import { messagePreview } from "../utils/chat";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const props = defineProps<{ conversation: ChatConversation }>();
 
@@ -79,7 +80,7 @@ const onUnpin = async (message: ChatMessage) => {
         type="button"
         class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
         aria-label="Bỏ ghim tin nhắn này"
-        title="Bỏ ghim tin nhắn này"
+        v-tooltip="'Bỏ ghim tin nhắn này'"
         @click="onUnpin(latest)"
       >
         <WidgetIcon name="PinOff" :size="13" />

@@ -4,6 +4,7 @@ import { useChatStore } from "../core/store/useChatStore";
 import type { ChatConversation } from "../types/chat";
 import MessageThread from "./MessageThread.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const props = defineProps<{ conversation: ChatConversation }>();
 
@@ -30,7 +31,7 @@ const subheading = computed(() => (isGroup(props.conversation) ? "Nhóm" : "Hộ
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
         aria-label="Thu nhỏ hội thoại"
-        title="Thu nhỏ hội thoại"
+        v-tooltip="'Thu nhỏ hội thoại'"
         @click="minimizeSide()"
       >
         <WidgetIcon name="Minus" :size="18" />
@@ -40,7 +41,7 @@ const subheading = computed(() => (isGroup(props.conversation) ? "Nhóm" : "Hộ
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
         aria-label="Đóng hội thoại"
-        title="Đóng hội thoại"
+        v-tooltip="'Đóng hội thoại'"
         @click="closeSide()"
       >
         <WidgetIcon name="X" :size="18" />

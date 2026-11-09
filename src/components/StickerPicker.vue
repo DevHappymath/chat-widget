@@ -7,6 +7,7 @@ import { matchesAllWords, normalizeName } from "../utils/chat";
 import StickerCreateForm from "./StickerCreateForm.vue";
 import StickerMedia from "./StickerMedia.vue";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 /** Bảng chọn nhãn dán của ô soạn tin. Chọn là gửi luôn, nơi gọi tự đóng bảng. */
 const emit = defineEmits<{ pick: [sticker: Sticker] }>();
@@ -154,7 +155,7 @@ const CELL_CLASS =
               :key="sticker.id"
               type="button"
               :class="CELL_CLASS"
-              :title="sticker.name"
+              v-tooltip="sticker.name"
               :aria-label="`Gửi nhãn dán ${sticker.name}`"
               @click="pick(sticker)"
             >
@@ -175,7 +176,7 @@ const CELL_CLASS =
                 :key="sticker.id"
                 type="button"
                 :class="CELL_CLASS"
-                :title="sticker.name"
+                v-tooltip="sticker.name"
                 :aria-label="`Gửi nhãn dán ${sticker.name}`"
                 @click="pick(sticker)"
               >
@@ -202,7 +203,7 @@ const CELL_CLASS =
                 :key="sticker.id"
                 type="button"
                 :class="CELL_CLASS"
-                :title="sticker.name"
+                v-tooltip="sticker.name"
                 :aria-label="`Gửi nhãn dán ${sticker.name}`"
                 @click="pick(sticker)"
               >

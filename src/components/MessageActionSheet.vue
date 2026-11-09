@@ -6,6 +6,7 @@ import { useWidgetConfirm } from "../core/store/useWidgetConfirm";
 import { useWidgetToast } from "../core/store/useWidgetToast";
 import { useIsWideViewport } from "../core/viewport";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const EmojiPicker = defineAsyncComponent(() => import("./EmojiPicker.vue"));
 
@@ -249,7 +250,7 @@ const onRun = async (action: SheetAction) => {
             <button
               type="button"
               class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
-              title="Chọn biểu tượng khác"
+              v-tooltip="'Chọn biểu tượng khác'"
               aria-label="Chọn biểu tượng khác"
               @click="showActionSheetEmojiPicker"
             >

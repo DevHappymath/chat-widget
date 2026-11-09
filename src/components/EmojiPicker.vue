@@ -4,6 +4,7 @@ import { EMOJI_KEYWORDS } from "../constants/emoji-keywords";
 import { EMOJI_CATEGORIES, type EmojiCategory } from "../constants/reaction";
 import { matchesAllWords, normalizeName } from "../utils/chat";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 /**
  * Bảng chọn biểu tượng dùng chung cho thả cảm xúc và chèn vào ô soạn tin. Chỉ là phần thân,
@@ -169,7 +170,7 @@ const isSelected = (emoji: string) => props.selected.includes(emoji);
             ? 'bg-chat-accent/10 text-chat-accent-strong'
             : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
         "
-        :title="section.label"
+        v-tooltip="section.label"
         :aria-label="section.label"
         @click="jumpTo(section.key)"
       >

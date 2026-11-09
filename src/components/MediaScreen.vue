@@ -7,6 +7,7 @@ import { AttachmentKind, type ConversationAttachment } from "../types/chat";
 import { attachmentIcon, isPreviewableInBrowser } from "../utils/attachment";
 import { formatBytes } from "../utils/format";
 import WidgetIcon from "./WidgetIcon.vue";
+import { vTooltip } from "../core/tooltip";
 
 const {
   activeConversationId,
@@ -139,7 +140,7 @@ const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
               type="button"
               class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong disabled:cursor-wait"
               :aria-label="`Tải ${item.attachment.fileName} về máy`"
-              title="Tải về máy"
+              v-tooltip="'Tải về máy'"
               :disabled="isDownloading(item.attachment.fileUrl)"
               @click="downloadFile(item.attachment.fileUrl, item.attachment.fileName)"
             >
@@ -154,7 +155,7 @@ const onOpenItem = (event: MouseEvent, item: ConversationAttachment) => {
               type="button"
               class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-chat-accent/10 hover:text-chat-accent-strong"
               aria-label="Mở tin nhắn đã gửi tệp này"
-              title="Mở tin nhắn đã gửi tệp này"
+              v-tooltip="'Mở tin nhắn đã gửi tệp này'"
               @click="activeConversationId && revealMessage(activeConversationId, item.messageId)"
             >
               <WidgetIcon name="CornerUpRight" :size="14" />
