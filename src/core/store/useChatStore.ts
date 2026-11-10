@@ -389,6 +389,7 @@ export const useChatStore = () => {
   const myAvatarUrl = computed(() => bootstrap.value?.user?.avatarUrl ?? null);
   const canChangeAvatar = computed(() => bootstrap.value?.user?.canChangeAvatar === true);
   const canCreateSticker = computed(() => bootstrap.value?.user?.canCreateSticker === true);
+  const canUseSticker = computed(() => bootstrap.value?.user?.canUseSticker === true);
 
   const applyAvatarChanged = (payload: UserAvatarChanged) => {
     const userId = payload.userId.toLowerCase();
@@ -536,7 +537,9 @@ export const useChatStore = () => {
     message.type !== MessageType.System &&
     !isLocalMessage(message);
 
-  const canForwardMessage = canPinMessage;
+  // Chuyển tiếp nhãn dán là tự gửi nhãn dán, server chặn với học sinh.
+  const canForwardMessage = (message: ChatMessage) =>
+    canPinMessage(message) && (message.type !== MessageType.Sticker || canUseSticker.value);
 
   const pinnedOf = (conversationId: string | null) =>
     conversationId ? (pinnedByConversation.value[conversationId] ?? []) : [];
@@ -2363,6 +2366,7 @@ export const useChatStore = () => {
     myAvatarUrl,
     canChangeAvatar,
     canCreateSticker,
+    canUseSticker,
     isSavingAvatar,
     saveMyAvatar,
     // panel

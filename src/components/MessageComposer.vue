@@ -53,6 +53,7 @@ const {
   isGroup,
   membersOf,
   cancelReply: cancelReplyIn,
+  canUseSticker,
 } = useChatStore();
 
 const replyingTo = computed(() => replyingToOf(props.conversation?.id ?? null));
@@ -269,10 +270,10 @@ const removeAttachment = (fileUrl: string) => {
 const isEmojiPickerOpen = ref(false);
 
 type PickerTab = "emoji" | "sticker";
-const PICKER_TABS: { key: PickerTab; label: string }[] = [
+const PICKER_TABS = computed<{ key: PickerTab; label: string }[]>(() => [
   { key: "emoji", label: "Biểu tượng" },
-  { key: "sticker", label: "Nhãn dán" },
-];
+  ...(canUseSticker.value ? [{ key: "sticker" as const, label: "Nhãn dán" }] : []),
+]);
 const pickerTab = ref<PickerTab>("emoji");
 
 const sendSticker = (sticker: Sticker) => {
@@ -557,7 +558,7 @@ defineExpose({ focus, addFiles });
 
         <!-- Nhãn dán chỉ dựng khi mở tab để không tải danh mục cho người chỉ chèn biểu tượng. -->
         <EmojiPicker v-show="pickerTab === 'emoji'" bare @pick="insertEmoji" />
-        <StickerPicker v-if="pickerTab === 'sticker'" @pick="sendSticker" />
+        <StickerPicker v-if="canUseSticker && pickerTab === 'sticker'" @pick="sendSticker" />
       </div>
     </Transition>
 

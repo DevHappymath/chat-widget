@@ -460,6 +460,8 @@ export interface ChatBootstrapUser {
   canChangeAvatar?: boolean;
   /** Chỉ nhân sự nội bộ được tạo nhãn dán; server đời cũ không gửi trường này. */
   canCreateSticker?: boolean;
+  /** Học sinh không mở bảng nhãn dán và không gửi được, nhưng vẫn xem nhãn dán nhân sự gửi. */
+  canUseSticker?: boolean;
 }
 
 export interface ChatAttachmentRule {
