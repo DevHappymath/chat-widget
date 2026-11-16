@@ -135,11 +135,10 @@ onMounted(load);
                 {{ displayNameOf(person) }}
               </span>
               <span
-                v-if="person.email || person.employeeCode"
+                v-if="person.employeeCode || person.customerCode || person.email"
                 class="block truncate text-xs text-gray-600"
               >
-                {{ person.email }}
-                <template v-if="person.employeeCode"> · {{ person.employeeCode }}</template>
+                {{ person.employeeCode || person.customerCode || person.email }}
               </span>
             </span>
 

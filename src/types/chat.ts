@@ -295,6 +295,7 @@ export interface AppUser {
   email?: string;
   fullName?: string;
   employeeCode?: string;
+  customerCode?: string | null;
   avatarUrl?: string | null;
   isLocked?: boolean;
 }
