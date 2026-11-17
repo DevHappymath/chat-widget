@@ -14,6 +14,7 @@ import MediaScreen from "./MediaScreen.vue";
 import MessageSearchScreen from "./MessageSearchScreen.vue";
 import MessageThread from "./MessageThread.vue";
 import NewGroupScreen from "./NewGroupScreen.vue";
+import NotificationBell from "./NotificationBell.vue";
 import PresenceDot from "./PresenceDot.vue";
 import PresenceMenu from "./PresenceMenu.vue";
 import PresenceStatusDialog from "./PresenceStatusDialog.vue";
@@ -110,6 +111,8 @@ const subheading = computed(() => {
         </button>
         <p v-else-if="subheading" class="truncate text-[11px] text-white/75">{{ subheading }}</p>
       </div>
+
+      <NotificationBell v-if="view === 'list'" />
 
       <button
         v-if="view === 'list'"

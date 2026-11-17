@@ -55,6 +55,7 @@ import {
   type SharedChatWindows,
 } from "../windowSync";
 import { useMessageAlerts } from "./useMessageAlerts";
+import { useNotifications } from "./useNotifications";
 import { usePresence } from "./usePresence";
 import { useStickers } from "./useStickers";
 import { useWidgetToast } from "./useWidgetToast";
@@ -81,11 +82,8 @@ const SEARCH_PAGE_SIZE = 20;
 
 const MEDIA_PAGE_SIZE = 30;
 
-/**
- * Backend không có endpoint lấy lịch sử quanh một tin, nên nhảy tới kết quả tìm kiếm phải
- * kéo lùi từng trang. Chặn số trang để một tin rất cũ không kéo cả hội thoại về máy.
- */
-const MAX_REVEAL_PAGES = 5;
+/** Số tin của đoạn nạp quanh một tin cũ khi mở thẳng tới nó, tin đó nằm giữa đoạn. */
+const REVEAL_WINDOW_SIZE = 50;
 
 /** Gộp các event dồn dập vào một lần gọi bootstrap để nắn lại số trên bong bóng. */
 const BADGE_REFRESH_DELAY_MS = 4000;
@@ -173,6 +171,13 @@ const fetchingConversationIds = new Set<string>();
 const messagesByConversation = ref<Record<string, ChatMessage[]>>({});
 /** Hội thoại nào còn tin cũ hơn ở phía trên, để ẩn hay hiện nút tải thêm. */
 const hasMoreByConversation = ref<Record<string, boolean>>({});
+/**
+ * Hội thoại đang xem một đoạn cũ chưa nối tới tin mới nhất (mở thẳng tới tin cũ). Lúc này tin
+ * mới về không được nối vào cuối danh sách, kẻo thủng một khúc giữa đoạn đang xem và tin mới.
+ */
+const hasNewerByConversation = ref<Record<string, boolean>>({});
+/** Hội thoại sắp mở để tới một tin cũ: giữ đoạn vừa nạp, không quay về tin mới nhất. */
+const keepWindowIds = new Set<string>();
 
 const pendingClientIds = ref<string[]>([]);
 const failedClientIds = ref<string[]>([]);
@@ -244,6 +249,7 @@ const minimizedSnapshots = ref<ChatConversation[]>([]);
 
 const isLoadingConversations = ref(false);
 const loadingMessagesByConversation = ref<Record<string, boolean>>({});
+const loadingNewerByConversation = ref<Record<string, boolean>>({});
 
 /** Số hội thoại chưa đọc theo bootstrap, dùng khi người dùng chưa mở panel lần nào. */
 const unreadFallback = ref(0);
@@ -287,6 +293,8 @@ const resetState = () => {
   conversationsLoaded.value = false;
   messagesByConversation.value = {};
   hasMoreByConversation.value = {};
+  hasNewerByConversation.value = {};
+  keepWindowIds.clear();
   pendingClientIds.value = [];
   failedClientIds.value = [];
   typingEntries.value = [];
@@ -326,6 +334,7 @@ const resetState = () => {
   minimizedSnapshots.value = [];
   isLoadingConversations.value = false;
   loadingMessagesByConversation.value = {};
+  loadingNewerByConversation.value = {};
   unreadFallback.value = 0;
   unreadMessagesFallback.value = 0;
 };
@@ -337,6 +346,7 @@ const resetState = () => {
 export const useChatStore = () => {
   const toast = useWidgetToast();
   const presence = usePresence();
+  const notifications = useNotifications();
   const messageAlerts = useMessageAlerts();
   const fitsTwoWindows = useFitsTwoWindows();
   const isWide = useIsWideViewport();
@@ -531,6 +541,12 @@ export const useChatStore = () => {
   const isLoadingMessagesOf = (conversationId: string | null) =>
     conversationId ? (loadingMessagesByConversation.value[conversationId] ?? false) : false;
 
+  const hasNewerOf = (conversationId: string | null) =>
+    conversationId ? (hasNewerByConversation.value[conversationId] ?? false) : false;
+
+  const isLoadingNewerOf = (conversationId: string | null) =>
+    conversationId ? (loadingNewerByConversation.value[conversationId] ?? false) : false;
+
   /** Mọi thành viên còn hoạt động đều ghim và gỡ được, kể cả tin của người khác. */
   const canPinMessage = (message: ChatMessage) =>
     !message.isDeleted &&
@@ -694,6 +710,7 @@ export const useChatStore = () => {
     rebuildAvatarMap();
     minimizedSnapshots.value = minimizedSnapshots.value.filter((c) => c.id !== conversationId);
     delete messagesByConversation.value[conversationId];
+    delete hasNewerByConversation.value[conversationId];
     delete replyingByConversation.value[conversationId];
     delete unreadMarkers.value[conversationId];
     unclickedIds.delete(conversationId);
@@ -734,9 +751,12 @@ export const useChatStore = () => {
       (m) => m.id === message.id || m.clientMessageId === message.clientMessageId,
     );
 
+    const isBeyondWindow =
+      hasNewerOf(message.conversationId) && message.sequence > (list.at(-1)?.sequence ?? 0);
+
     if (index >= 0) {
       list.splice(index, 1, message);
-    } else {
+    } else if (!isBeyondWindow) {
       const insertAt = list.findIndex((m) => m.sequence > message.sequence);
       list.splice(insertAt === -1 ? list.length : insertAt, 0, message);
     }
@@ -951,11 +971,67 @@ export const useChatStore = () => {
         : batch;
 
       hasMoreByConversation.value[conversationId] = res.data.data.hasMore;
+      if (!beforeSequence) hasNewerByConversation.value[conversationId] = false;
     } catch (err) {
       toast.error(extractErrorMessage(err));
     } finally {
       delete loadingMessagesByConversation.value[conversationId];
     }
+  };
+
+  /** Thay lịch sử đã tải bằng đoạn có tin đích ở giữa. Trả false khi tin không còn xem được. */
+  const loadMessagesAround = async (conversationId: string, messageId: string) => {
+    loadingMessagesByConversation.value[conversationId] = true;
+    try {
+      const res = await messageApi.getHistory(conversationId, {
+        aroundMessageId: messageId,
+        limit: REVEAL_WINDOW_SIZE,
+      });
+
+      messagesByConversation.value[conversationId] = [...(res.data.data.items ?? [])].reverse();
+      hasMoreByConversation.value[conversationId] = res.data.data.hasMore;
+      hasNewerByConversation.value[conversationId] = res.data.data.hasNewer;
+      return true;
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+      return false;
+    } finally {
+      delete loadingMessagesByConversation.value[conversationId];
+    }
+  };
+
+  /** Đang xem đoạn cũ thì cuộn xuống tải tiếp tin mới hơn, tới khi nối được với tin mới nhất. */
+  const loadNewerMessages = async (conversationId: string) => {
+    if (!hasNewerOf(conversationId) || isLoadingNewerOf(conversationId)) return;
+
+    const newest = messagesByConversation.value[conversationId]?.at(-1)?.sequence;
+    if (!newest) return;
+
+    loadingNewerByConversation.value[conversationId] = true;
+    try {
+      const res = await messageApi.getHistory(conversationId, {
+        afterSequence: newest,
+        limit: MAX_HISTORY_LIMIT,
+      });
+
+      const existing = messagesByConversation.value[conversationId] ?? [];
+      const knownIds = new Set(existing.map((m) => m.id));
+      const batch = [...(res.data.data.items ?? [])]
+        .reverse()
+        .filter((m) => !knownIds.has(m.id));
+
+      messagesByConversation.value[conversationId] = [...existing, ...batch];
+      hasNewerByConversation.value[conversationId] = res.data.data.hasNewer;
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      delete loadingNewerByConversation.value[conversationId];
+    }
+  };
+
+  /** Bỏ đoạn cũ đang xem, nạp lại phần tin mới nhất. */
+  const jumpToLatest = async (conversationId: string) => {
+    if (hasNewerOf(conversationId)) await loadMessages(conversationId);
   };
 
   const loadOlderMessages = async (conversationId: string) => {
@@ -1129,7 +1205,9 @@ export const useChatStore = () => {
     atBottomByConversation.value[id] = true;
     revealUnreadByConversation.value[id] = true;
 
-    if (!messagesByConversation.value[id]) {
+    const isStaleWindow = hasNewerOf(id) && !keepWindowIds.has(id);
+
+    if (!messagesByConversation.value[id] || isStaleWindow) {
       // Tải dư thêm một trang để vạch tin chưa đọc có tin cũ phía trên làm ngữ cảnh.
       await loadMessages(id, undefined, Math.min(MAX_HISTORY_LIMIT, PAGE_SIZE + unread));
     }
@@ -1277,6 +1355,9 @@ export const useChatStore = () => {
     const clientMessageId = crypto.randomUUID();
     const conversationId = conversation.id;
     const replyingTo = replyingToOf(conversationId);
+
+    // Tin vừa gửi phải hiện ngay dưới tin mới nhất, nên đang xem đoạn cũ thì quay về hiện tại trước.
+    if (hasNewerOf(conversationId)) await loadMessages(conversationId);
 
     const optimistic: ChatMessage = {
       id: clientMessageId,
@@ -1524,8 +1605,7 @@ export const useChatStore = () => {
   };
 
   /**
-   * Nhảy tới tin gốc khi bấm khối trích dẫn. Tin cũ hơn phần đã tải thì không có trong DOM,
-   * lúc đó chỉ báo cho người dùng biết phải tải thêm.
+   * Chỉ cuộn tới tin đã có trong DOM; tin chưa tải thì đi qua `revealMessage`.
    */
   const jumpToMessage = (messageId: string) => {
     const element = document.querySelector(
@@ -1533,7 +1613,7 @@ export const useChatStore = () => {
     );
 
     if (!element) {
-      toast.info("Tin nhắn này nằm ngoài phần đã tải, hãy tải thêm tin cũ hơn");
+      toast.info("Không mở được tin nhắn này");
       return;
     }
 
@@ -1719,28 +1799,34 @@ export const useChatStore = () => {
   };
 
   /**
-   * Mở đúng tin nhắn từ thanh ghim, kho media hoặc kết quả tìm kiếm. Tin nằm ngoài phần đã
-   * tải thì kéo lùi lịch sử tối đa `MAX_REVEAL_PAGES` trang rồi mới cuộn tới.
+   * Mở đúng tin nhắn từ trích dẫn, thanh ghim, kho media hoặc kết quả tìm kiếm. Tin chưa tải thì
+   * nạp thẳng một đoạn quanh nó thay vì kéo lùi cả phần lịch sử phía sau.
    */
   const revealMessage = async (conversationId: string, messageId: string) => {
+    const isLoaded = messagesByConversation.value[conversationId]?.some((m) => m.id === messageId);
+
+    if (!isLoaded) {
+      // Khung đang ở đáy sẽ tự cuộn theo tin cuối khi danh sách đổi, đè mất chỗ cần tới.
+      if (isOpenInWindow(conversationId)) atBottomByConversation.value[conversationId] = false;
+      if (!(await loadMessagesAround(conversationId, messageId))) return;
+    }
+
     // Đang mở ở khung thứ hai thì cuộn ngay tại đó, không kéo hội thoại sang khung chính.
     if (activeConversationId.value === conversationId) {
       view.value = "thread";
     } else if (sideConversationId.value !== conversationId) {
-      await selectConversation(conversationId);
+      // Thông báo có thể trỏ tới hội thoại nằm ngoài trang danh sách đã nạp.
+      if (!(await ensureConversation(conversationId))) return;
+      keepWindowIds.add(conversationId);
+      try {
+        await selectConversation(conversationId);
+      } finally {
+        keepWindowIds.delete(conversationId);
+      }
     }
 
-    const isLoaded = () =>
-      messagesByConversation.value[conversationId]?.some((m) => m.id === messageId);
-
-    for (let page = 0; page < MAX_REVEAL_PAGES && !isLoaded(); page++) {
-      if (!hasMoreByConversation.value[conversationId]) break;
-
-      const oldest = messagesByConversation.value[conversationId]?.[0]?.sequence;
-      if (!oldest) break;
-
-      await loadMessages(conversationId, oldest);
-    }
+    // Mở hội thoại đặt lại cờ đang ở đáy, mà xem đoạn cũ thì chưa thấy tin mới nhất.
+    if (hasNewerOf(conversationId)) atBottomByConversation.value[conversationId] = false;
 
     await nextTick();
     jumpToMessage(messageId);
@@ -2056,6 +2142,7 @@ export const useChatStore = () => {
       await startHub(res.data.data.hubPath);
       if (session !== lifecycle) return;
       presence.start(currentUserId.value);
+      notifications.start();
     } catch (err) {
       if (session === lifecycle) bootError.value = extractErrorMessage(err);
     } finally {
@@ -2074,6 +2161,7 @@ export const useChatStore = () => {
     isSubscribed = false;
     void stopHub();
     presence.stop();
+    notifications.stop();
     messageAlerts.dispose();
     stopViewportWatch();
 
@@ -2405,11 +2493,13 @@ export const useChatStore = () => {
     typingParticipantsOf,
     typingNamesOf,
     hasMoreOf,
+    hasNewerOf,
     draft,
     filter,
     keyword,
     isLoadingConversations,
     isLoadingMessagesOf,
+    isLoadingNewerOf,
     pendingClientIds,
     failedClientIds,
     editingMessageId,
@@ -2462,6 +2552,8 @@ export const useChatStore = () => {
     refreshBadge,
     loadConversations,
     loadOlderMessages,
+    loadNewerMessages,
+    jumpToLatest,
     selectConversation,
     acknowledgeConversation,
     openConversationWith,

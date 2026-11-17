@@ -44,7 +44,7 @@ const {
   membersOf,
   cancelEditMessage,
   saveEditMessage,
-  jumpToMessage,
+  revealMessage,
   highlightedMessageId,
   toggleReaction,
   reactedByMe,
@@ -399,7 +399,7 @@ const onEditKeydown = (event: KeyboardEvent) => {
                         ? 'bg-white/15 hover:bg-white/25'
                         : 'bg-gray-900/5 hover:bg-gray-900/10',
                     ]"
-                    @click="jumpToMessage(message.replyTo.id)"
+                    @click="revealMessage(message.conversationId, message.replyTo.id)"
                   >
                     <span
                       class="w-0.5 shrink-0 rounded-full"

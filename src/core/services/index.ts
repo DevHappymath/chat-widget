@@ -35,6 +35,7 @@ import type {
   UpdateParticipantRoleCommand,
   UploadedFile,
 } from "../../types/chat";
+import type { ChatNotification } from "../../types/notification";
 import { useHttp } from "../http";
 
 const toQuery = (params: PagedParams, defaultPageSize: number) => ({
@@ -141,6 +142,8 @@ export const messageApi = {
       {
         params: {
           BeforeSequence: request.beforeSequence ?? undefined,
+          AfterSequence: request.afterSequence ?? undefined,
+          AroundMessageId: request.aroundMessageId ?? undefined,
           Limit: request.limit ?? 30,
         },
       },
@@ -273,4 +276,18 @@ export const userApi = {
   },
 
   removeMyAvatar: () => useHttp().delete<ApiEnvelope<AppUser>>("/users/me/avatar"),
+};
+
+/** `api/notifications` - chỉ trả thông báo của chính người đang đăng nhập. */
+export const notificationApi = {
+  getPaged: (params: PagedParams) =>
+    useHttp().get<PagedResult<ChatNotification>>("/notifications", {
+      params: { PageNumber: params.pageNumber ?? 1, PageSize: params.pageSize ?? 20 },
+    }),
+
+  countUnread: () => useHttp().get<ApiEnvelope<number>>("/notifications/unread-count"),
+
+  markRead: (id: string) => useHttp().post<ApiEnvelope<null>>(`/notifications/${id}/read`),
+
+  markAllRead: () => useHttp().post<ApiEnvelope<null>>("/notifications/read-all"),
 };

@@ -9,7 +9,8 @@ tin, đính kèm (kể cả dán ảnh từ clipboard), trả lời, thả cảm
 nhóm, báo đang soạn tin, trạng thái hoạt động kiểu Teams (sẵn sàng, bận, không làm phiền,
 vắng mặt khi rời máy, lời nhắn trạng thái). Nhóm: tạo nhóm, đổi tên và ảnh nhóm, thêm và xoá
 thành viên, rời nhóm. Tìm kiếm tin nhắn (trong một hội thoại và toàn cục), ghim tin, chuyển
-tiếp tin, kho ảnh và tệp của hội thoại. Thu nhỏ hội thoại đang mở thành avatar cạnh bong bóng
+tiếp tin, kho ảnh và tệp của hội thoại. Chuông thông báo khi bị nhắc tên hoặc có người trả lời
+tin của mình, bấm vào là mở đúng tin đó. Thu nhỏ hội thoại đang mở thành avatar cạnh bong bóng
 để mở lại nhanh.
 
 Panel, các hội thoại đang mở và dãy avatar thu nhỏ đồng bộ giữa các site chung tên miền mẹ
@@ -209,8 +210,9 @@ lần qua `POST /chat/hub-ticket` (đi qua proxy hoặc kèm `getToken`).
   cũng phải bỏ dấu; đổi cách chuẩn hoá một bên là kết quả ra mà không chỗ nào được tô sáng.
 - **Thu hồi tin gỡ ghim ngay ở backend nhưng chỉ phát `MessageDeleted`**, không phát thêm
   `MessagePinChanged`; `syncPinnedList` là chỗ duy nhất gỡ tin khỏi thanh ghim.
-- **Nhảy tới một tin cũ kéo lùi tối đa 5 trang lịch sử** (`MAX_REVEAL_PAGES`) vì backend chưa có
-  endpoint lấy lịch sử quanh một tin.
+- **Nhảy tới một tin cũ nạp thẳng một đoạn quanh tin đó** (`aroundMessageId`), nên khung chat có
+  thể đang xem một đoạn chưa nối tới tin mới nhất (`hasNewerOf`). Lúc đó tin mới về không nối vào
+  cuối danh sách; gửi tin hay bấm nút cuộn xuống thì nạp lại phần tin mới nhất trước.
 - Widget chỉ chạy phía client. Luôn bọc `<ClientOnly>`.
 - **Tin đến lúc tab ẩn vẫn tính là chưa đọc**, kể cả khi panel mở đúng hội thoại đó; quay lại
   tab mới đánh dấu đã đọc.

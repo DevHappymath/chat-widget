@@ -5,6 +5,8 @@ export { createBffTokenProvider } from "./core/token";
 
 export { useChatStore } from "./core/store/useChatStore";
 export { usePresence } from "./core/store/usePresence";
+export { useNotifications } from "./core/store/useNotifications";
+export { NotificationType, type ChatNotification } from "./types/notification";
 
 export { HubEvent, HubMethod } from "./constants/hub-event";
 export { EMOJI_CATEGORIES, REACTION_EMOJIS } from "./constants/reaction";

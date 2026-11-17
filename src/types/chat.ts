@@ -187,6 +187,8 @@ export interface MessageHistory {
   /** Server trả Sequence giảm dần - tin mới nhất đứng đầu. */
   items: ChatMessage[];
   hasMore: boolean;
+  /** Còn tin mới hơn tin đầu của `items`; chỉ bật khi lấy theo `aroundMessageId` hoặc `afterSequence`. */
+  hasNewer: boolean;
   oldestSequence?: number | null;
 }
 
@@ -374,6 +376,10 @@ export interface UpdateMessageCommand {
 export interface MessageHistoryRequest {
   /** Lấy các tin cũ hơn mốc này; bỏ trống là lấy từ tin mới nhất. */
   beforeSequence?: number | null;
+  /** Lấy các tin mới hơn mốc này, khi đang xem một đoạn cũ rồi cuộn xuống. */
+  afterSequence?: number | null;
+  /** Lấy một đoạn có tin này ở giữa. Mỗi lần chỉ dùng một trong ba mốc. */
+  aroundMessageId?: string | null;
   /** Backend chặn trong khoảng 1 đến 100. */
   limit?: number;
 }

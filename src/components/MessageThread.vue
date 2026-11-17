@@ -31,7 +31,9 @@ const {
   typingParticipantsOf,
   typingNamesOf,
   hasMoreOf,
+  hasNewerOf,
   isLoadingMessagesOf,
+  isLoadingNewerOf,
   unreadMarkerOf,
   isAtBottom,
   setThreadAtBottom,
@@ -47,6 +49,8 @@ const {
   sendMessage,
   sendSticker,
   loadOlderMessages,
+  loadNewerMessages,
+  jumpToLatest,
   markRead,
   isOwnMessage,
   notifyTyping,
@@ -72,6 +76,8 @@ const draft = computed(() => (props.conversationId ? null : storeDraft.value));
 const messages = computed(() => messagesOf(props.conversationId));
 const hasMoreMessages = computed(() => hasMoreOf(props.conversationId));
 const isLoadingMessages = computed(() => isLoadingMessagesOf(props.conversationId));
+const hasNewerMessages = computed(() => hasNewerOf(props.conversationId));
+const isLoadingNewerMessages = computed(() => isLoadingNewerOf(props.conversationId));
 const isThreadAtBottom = computed(() => isAtBottom(props.conversationId));
 
 const openScreen = async (screen: "search" | "info") => {
@@ -163,6 +169,9 @@ const AT_BOTTOM_THRESHOLD_PX = 64;
 /** Chừa một khoảng phía trên vạch tin chưa đọc để còn thấy tin cũ liền trước làm ngữ cảnh. */
 const UNREAD_DIVIDER_OFFSET_PX = 40;
 
+/** Đang xem đoạn cũ mà cuộn còn cách đáy chừng này thì tải trước tin mới hơn, đỡ phải chờ. */
+const LOAD_NEWER_THRESHOLD_PX = 320;
+
 /** Tin mới đến trong lúc đang cuộn lên; cuộn xuống đáy là đã đọc nên số này về 0. */
 const newMessageCount = computed(() =>
   isThreadAtBottom.value ? 0 : (conversation.value?.unreadCount ?? 0),
@@ -186,8 +195,11 @@ const scrollToBottom = (behavior: ScrollBehavior = "auto") => {
   if (el) el.scrollTo({ top: el.scrollHeight, behavior });
 };
 
+const distanceFromBottom = (el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight;
+
+/** Cuối một đoạn cũ chưa phải tin mới nhất, chưa được tính là đã đọc hết. */
 const isNearBottom = (el: HTMLElement) =>
-  el.scrollHeight - el.scrollTop - el.clientHeight <= AT_BOTTOM_THRESHOLD_PX;
+  distanceFromBottom(el) <= AT_BOTTOM_THRESHOLD_PX && !hasNewerMessages.value;
 
 /** Xuống tới tin cuối là đã đọc hết, kể cả loạt tin về trong lúc đang cuộn lên. */
 const setAtBottom = (atBottom: boolean) => {
@@ -200,6 +212,8 @@ const setAtBottom = (atBottom: boolean) => {
 const onScroll = () => {
   const el = scroller.value;
   if (!el) return;
+
+  if (hasNewerMessages.value && distanceFromBottom(el) <= LOAD_NEWER_THRESHOLD_PX) onLoadNewer();
 
   const atBottom = isNearBottom(el);
   if (atBottom !== isThreadAtBottom.value) setAtBottom(atBottom);
@@ -243,6 +257,8 @@ watch(
     if (positionedConversationId !== conversationId) {
       positionedConversationId = conversationId;
       const revealUnread = takeRevealUnread(conversationId);
+      // Mở thẳng tới một tin cũ thì chỗ cuộn do revealMessage đặt, không xuống tin chưa đọc.
+      if (hasNewerMessages.value) return;
 
       await nextTick();
       if (revealUnread) scrollToFirstUnread();
@@ -316,6 +332,33 @@ const onLoadOlder = async () => {
 
   await nextTick();
   if (el) el.scrollTop = el.scrollHeight - previousHeight;
+};
+
+/**
+ * Tin mới hơn nối vào dưới nên chỗ đang đọc tự đứng yên. Nối tới tin mới nhất rồi thì tính lại
+ * có đang ở đáy không; chưa tới thì thôi, kẻo lỗi mạng làm nó tự gọi lại liên tục.
+ */
+async function onLoadNewer() {
+  if (!conversationId.value) return;
+
+  await loadNewerMessages(conversationId.value);
+  if (hasNewerMessages.value) return;
+
+  await nextTick();
+  onScroll();
+}
+
+/** Đang xem đoạn cũ thì phải nạp lại phần tin mới nhất rồi mới có đáy để cuộn xuống. */
+const onJumpToBottom = async () => {
+  if (!hasNewerMessages.value || !conversationId.value) {
+    scrollToBottom("smooth");
+    return;
+  }
+
+  await jumpToLatest(conversationId.value);
+  await nextTick();
+  scrollToBottom();
+  onScroll();
 };
 </script>
 
@@ -453,6 +496,17 @@ const onLoadOlder = async () => {
           </template>
         </div>
 
+        <div v-if="hasNewerMessages" class="mt-3 flex justify-center">
+          <button
+            type="button"
+            class="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+            :disabled="isLoadingNewerMessages"
+            @click="onLoadNewer"
+          >
+            {{ isLoadingNewerMessages ? "Đang tải..." : "Tải tin nhắn mới hơn" }}
+          </button>
+        </div>
+
         <Transition
           enter-active-class="transition duration-150 ease-out motion-reduce:transition-none"
           enter-from-class="translate-y-1.5 opacity-0"
@@ -484,7 +538,7 @@ const onLoadOlder = async () => {
               : 'border border-gray-200 bg-white px-2.5 text-gray-500 shadow-gray-900/10 hover:bg-gray-50 hover:text-gray-700'
           "
           :aria-label="jumpToBottomLabel"
-          @click="scrollToBottom('smooth')"
+          @click="onJumpToBottom"
         >
           <TypingDots v-if="typingLabel" class="mx-0.5" />
           <WidgetIcon v-else name="ArrowDown" :size="14" />
