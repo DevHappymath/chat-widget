@@ -127,6 +127,7 @@ let settings: AssistantSettingsResponse = {
     maxQuestionsPerMinute: 20,
     dailyTokenQuotaPerUser: 200_000,
     maskPhoneNumbers: true,
+    quickLookupEnabled: true,
     retentionDays: 90,
     updatedAtUtc: daysAgo(3),
     updatedByName: "Quản trị hệ thống",

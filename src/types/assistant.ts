@@ -201,6 +201,8 @@ export interface AssistantSettings {
   maxQuestionsPerMinute: number;
   dailyTokenQuotaPerUser: number;
   maskPhoneNumbers: boolean;
+  /** Câu khớp mẫu (mã lead, hoa hồng, lịch dạy...) được tra thẳng, không qua mô hình. */
+  quickLookupEnabled: boolean;
   retentionDays: number;
   updatedAtUtc?: string | null;
   updatedByName?: string | null;

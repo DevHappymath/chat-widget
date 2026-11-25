@@ -40,6 +40,17 @@ watch(
       <SettingToggle v-model="form.enabled" />
     </section>
 
+    <section class="flex items-start gap-4 rounded-2xl border border-gray-200 p-4">
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-semibold text-gray-900">Tra nhanh</p>
+        <p class="mt-0.5 text-xs leading-relaxed text-gray-500">
+          Câu hỏi ngắn như mã lead, học sinh, hoa hồng, lịch dạy được tra ngay và trả kết quả kèm link, không tốn
+          lượt mô hình. Tắt thì mọi câu đều để mô hình trả lời.
+        </p>
+      </div>
+      <SettingToggle v-model="form.quickLookupEnabled" />
+    </section>
+
     <section class="rounded-2xl border border-gray-200 p-4">
       <p class="text-sm font-semibold text-gray-900">Ai được dùng</p>
       <p class="mt-0.5 text-xs leading-relaxed text-gray-500">

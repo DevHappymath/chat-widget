@@ -35,6 +35,7 @@ const toCommand = (s: AssistantSettings): UpdateAssistantSettingsCommand => ({
   maxQuestionsPerMinute: s.maxQuestionsPerMinute,
   dailyTokenQuotaPerUser: s.dailyTokenQuotaPerUser,
   maskPhoneNumbers: s.maskPhoneNumbers,
+  quickLookupEnabled: s.quickLookupEnabled,
   retentionDays: s.retentionDays,
 });
 
