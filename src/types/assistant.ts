@@ -61,7 +61,7 @@ export interface AssistantCardLink {
   url: string;
 }
 
-export type AssistantCardKind = "lead" | "leads" | "students" | "commission" | "lessons" | "classes" | "trials" | "docs";
+export type AssistantCardKind = "lead" | "leads" | "student" | "students" | "commission" | "lessons" | "classes" | "trials" | "docs";
 
 /** Kết quả tra nhanh dựng sẵn ở backend, kèm link mở đúng trang bên hệ tuyển sinh/lớp học. */
 export interface AssistantCard {

@@ -8,21 +8,13 @@ const props = defineProps<{ card: AssistantCard }>();
 const KIND_ICON: Record<AssistantCardKind, string> = {
   lead: "UserRound",
   leads: "Users",
+  student: "GraduationCap",
   students: "GraduationCap",
   commission: "Wallet",
   lessons: "CalendarDays",
   classes: "School",
   trials: "CalendarClock",
   docs: "FileText",
-};
-
-/** Widget nằm ngay trên site của hệ đó: link cùng site mở tại chỗ, sang hệ khác mở tab mới để không mất cuộc hỏi. */
-const linkTarget = (url: string) => {
-  try {
-    return new URL(url, window.location.href).origin === window.location.origin ? undefined : "_blank";
-  } catch {
-    return "_blank";
-  }
 };
 
 const icon = computed(() => KIND_ICON[props.card.kind] ?? "Search");
@@ -58,7 +50,7 @@ const icon = computed(() => KIND_ICON[props.card.kind] ?? "Search");
         <component
           :is="row.url ? 'a' : 'div'"
           :href="row.url ?? undefined"
-          :target="row.url ? linkTarget(row.url) : undefined"
+          :target="row.url ? '_blank' : undefined"
           rel="noopener noreferrer"
           class="group flex items-center gap-2.5 px-3 py-2"
           :class="row.url && 'transition-colors hover:bg-gray-50'"
@@ -83,7 +75,7 @@ const icon = computed(() => KIND_ICON[props.card.kind] ?? "Search");
         v-for="link in card.links"
         :key="link.url"
         :href="link.url"
-        :target="linkTarget(link.url)"
+        target="_blank"
         rel="noopener noreferrer"
         class="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 transition-all hover:border-chat-accent/40 hover:text-chat-accent-strong active:scale-[0.98]"
       >
