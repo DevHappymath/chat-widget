@@ -2,7 +2,11 @@
 import { computed, ref } from "vue";
 import { ownPresenceLabel } from "../constants/presence";
 import type { PresenceStatus } from "../types/chat";
+import { useAssistant } from "../core/store/useAssistant";
 import { useChatStore, type WidgetView } from "../core/store/useChatStore";
+import AssistantHistoryScreen from "./assistant/AssistantHistoryScreen.vue";
+import AssistantScreen from "./assistant/AssistantScreen.vue";
+import AssistantSettingsScreen from "./assistant/AssistantSettingsScreen.vue";
 import AddMembersScreen from "./AddMembersScreen.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import ContactPicker from "./ContactPicker.vue";
@@ -46,7 +50,13 @@ const HEADINGS: Record<WidgetView, string> = {
   forward: "Chuyển tiếp",
   media: "Ảnh và tệp",
   join: "Tham gia nhóm",
+  assistant: "Trợ lý GDTD",
+  "assistant-history": "Các cuộc hỏi trước",
+  "assistant-settings": "Cài đặt trợ lý",
 };
+
+const assistant = useAssistant();
+const isAssistantView = computed(() => view.value.startsWith("assistant"));
 
 // Danh bạ của học sinh chỉ gồm giáo viên phụ trách, gọi đúng tên cho họ khỏi tìm người khác.
 const heading = computed(() =>
@@ -67,6 +77,11 @@ const showPresenceTrigger = computed(() => view.value === "list" && Boolean(myPr
 
 const subheading = computed(() => {
   if (view.value === "list") return currentUserName.value;
+  if (view.value === "assistant") {
+    return assistant.activeThread.value?.title ?? "";
+  }
+  if (view.value === "assistant-settings") return "Chỉ quản trị viên thấy mục này";
+  if (isAssistantView.value) return "";
   if (!activeConversation.value) return "";
 
   return isGroup(activeConversation.value) ? "Nhóm" : "Hội thoại riêng";
@@ -125,6 +140,37 @@ const subheading = computed(() => {
         <WidgetIcon name="SquarePen" :size="17" />
       </button>
 
+      <template v-if="view === 'assistant'">
+        <button
+          type="button"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
+          aria-label="Cuộc hỏi mới"
+          v-tooltip="'Cuộc hỏi mới'"
+          @click="assistant.newThread"
+        >
+          <WidgetIcon name="SquarePen" :size="17" />
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
+          aria-label="Các cuộc hỏi trước"
+          v-tooltip="'Các cuộc hỏi trước'"
+          @click="view = 'assistant-history'"
+        >
+          <WidgetIcon name="History" :size="17" />
+        </button>
+        <button
+          v-if="assistant.canManage.value"
+          type="button"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
+          aria-label="Cài đặt trợ lý"
+          v-tooltip="'Cài đặt trợ lý'"
+          @click="assistant.openSettings"
+        >
+          <WidgetIcon name="Settings" :size="17" />
+        </button>
+      </template>
+
       <button
         v-if="view === 'thread' && activeConversation"
         type="button"
@@ -171,6 +217,9 @@ const subheading = computed(() => {
     <ForwardScreen v-else-if="view === 'forward'" />
     <MediaScreen v-else-if="view === 'media'" />
     <JoinGroupScreen v-else-if="view === 'join'" />
+    <AssistantScreen v-else-if="view === 'assistant'" />
+    <AssistantHistoryScreen v-else-if="view === 'assistant-history'" />
+    <AssistantSettingsScreen v-else-if="view === 'assistant-settings' && assistant.canManage.value" />
     <MessageThread v-else :conversation-id="activeConversationId" />
 
     <WidgetToaster />

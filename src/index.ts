@@ -4,6 +4,8 @@ export { configureChatWidget, type ChatWidgetConfig, type TokenProvider } from "
 export { createBffTokenProvider } from "./core/token";
 
 export { useChatStore } from "./core/store/useChatStore";
+export { setAssistantContext } from "./core/store/useAssistant";
+export type { AssistantApp, AssistantEntity } from "./types/assistant";
 export { usePresence } from "./core/store/usePresence";
 export { useNotifications } from "./core/store/useNotifications";
 export { NotificationType, type ChatNotification } from "./types/notification";

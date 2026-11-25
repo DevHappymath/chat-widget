@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { useChatStore, type ConversationFilter } from "../core/store/useChatStore";
 import { debounce } from "../utils/debounce";
+import { useAssistant } from "../core/store/useAssistant";
+import AssistantRow from "./assistant/AssistantRow.vue";
 import ConversationRow from "./ConversationRow.vue";
 import GlobalSearchResults from "./GlobalSearchResults.vue";
 import WidgetIcon from "./WidgetIcon.vue";
@@ -16,6 +18,8 @@ const {
   loadConversations,
   selectConversation,
 } = useChatStore();
+
+const { canUse: canUseAssistant } = useAssistant();
 
 // Tìm kiếm chạy ở backend (lọc cả theo tên thành viên) nên phải chờ người dùng gõ xong.
 const reload = debounce(() => loadConversations(), 350);
@@ -163,6 +167,12 @@ const emptyHint = computed(() => {
       </div>
 
       <div v-else class="space-y-0.5 p-2">
+        <!-- Trợ lý không phải hội thoại: không lọt vào kết quả tìm, không bị tin mới đẩy xuống. -->
+        <template v-if="canUseAssistant && !isSearching">
+          <AssistantRow />
+          <div class="mx-2.5 my-1.5 border-b border-gray-100" />
+        </template>
+
         <ConversationRow
           v-for="conversation in filteredConversations"
           :key="conversation.id"

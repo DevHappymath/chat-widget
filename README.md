@@ -152,8 +152,32 @@ interface ChatWidgetConfig {
   zIndex?: number;
   /** Số tin chưa đọc trên tiêu đề tab và trên favicon, mặc định bật */
   tabIndicator?: boolean;
+  /** Hệ đang nhúng widget ("crm", "lms", "hr"...): trợ lý tra hệ này trước */
+  app?: AssistantApp;
+  /** Chỉ bật ở máy dev khi chat service chưa có trợ lý: trợ lý trả lời bằng dữ liệu giả */
+  assistantMock?: boolean;
 }
 ```
+
+### Trợ lý hỏi đáp
+
+Dòng "Trợ lý GDTD" nằm trên cùng danh sách đoạn chat, chỉ hiện khi bootstrap trả
+`assistant.canUseAssistant = true` (nhân sự; học sinh không bao giờ thấy). Nút cài đặt trong trợ
+lý chỉ hiện với quản trị viên.
+
+Site khai `app` để trợ lý biết đang ở hệ nào. Trang chi tiết (lead, lớp...) báo thêm thứ đang mở
+để người dùng hỏi "bạn này đang ở bước nào" là trợ lý hiểu:
+
+```ts
+import { setAssistantContext } from "@gdtd/chat-widget";
+
+// Trang chi tiết lead
+onMounted(() => setAssistantContext({ type: "lead", code: lead.code, label: `Lead ${lead.code}` }));
+onBeforeUnmount(() => setAssistantContext(null));
+```
+
+Ngữ cảnh chỉ để trợ lý ưu tiên tra đúng chỗ. Quyền xem dữ liệu luôn theo token của người hỏi, do
+từng hệ tự kiểm.
 
 Site giữ token trong cookie httpOnly thì dùng `proxyBase`. Đưa token ra JS chỉ để widget gọi
 chat là mở đường cho mọi đoạn script lạ trên trang lấy được token.

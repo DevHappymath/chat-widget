@@ -124,7 +124,10 @@ export type WidgetView =
   | "search"
   | "forward"
   | "media"
-  | "join";
+  | "join"
+  | "assistant"
+  | "assistant-history"
+  | "assistant-settings";
 
 /** Mỗi màn chỉ có đúng một màn cha, đủ để nút quay lại không cần giữ ngăn xếp. */
 const PARENT_VIEW: Record<WidgetView, WidgetView> = {
@@ -138,6 +141,9 @@ const PARENT_VIEW: Record<WidgetView, WidgetView> = {
   forward: "thread",
   media: "info",
   join: "contacts",
+  assistant: "list",
+  "assistant-history": "assistant",
+  "assistant-settings": "assistant",
 };
 
 // ─── State: một bản duy nhất cho cả tab ───────────────────────────────────────

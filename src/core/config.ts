@@ -1,4 +1,5 @@
 import { shallowRef } from "vue";
+import type { AssistantApp } from "../types/assistant";
 
 export type TokenProvider = () => string | null | Promise<string | null>;
 
@@ -29,9 +30,16 @@ export interface ChatWidgetConfig {
    * đã tự quản lý tiêu đề hoặc favicon để báo việc khác.
    */
   tabIndicator?: boolean;
+  /**
+   * Hệ đang nhúng widget. Trợ lý tra hệ này trước, ví dụ ở CRM hỏi "L123" là tra lead L123 trước
+   * khi sang lớp học. Chỉ để ưu tiên, không cấp thêm quyền gì.
+   */
+  app?: AssistantApp;
+  /** Chỉ bật ở máy dev khi backend trợ lý chưa có: trợ lý trả lời bằng dữ liệu giả. */
+  assistantMock?: boolean;
 }
 
-type OptionalKeys = "proxyBase" | "getToken" | "hubUrl" | "onUnauthorized";
+type OptionalKeys = "proxyBase" | "getToken" | "hubUrl" | "onUnauthorized" | "app" | "assistantMock";
 
 type ResolvedConfig = Required<Omit<ChatWidgetConfig, OptionalKeys>> &
   Pick<ChatWidgetConfig, OptionalKeys>;

@@ -26,6 +26,11 @@ export const HubEvent = {
 
   UserTyping: "UserTyping",
   NotificationCreated: "NotificationCreated",
+
+  /** Chỉ gửi cho chính người hỏi: trợ lý đang tra dữ liệu ở đâu. */
+  AssistantStatus: "AssistantStatus",
+  /** Đoạn chữ nối tiếp của câu trả lời đang về. */
+  AssistantDelta: "AssistantDelta",
 } as const;
 
 export type HubEventName = (typeof HubEvent)[keyof typeof HubEvent];

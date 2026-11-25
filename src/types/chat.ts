@@ -1,3 +1,5 @@
+import type { AssistantAccess } from "./assistant";
+
 // Ánh xạ 1-1 với DTO của CHAT_GDTD.Application. Backend không đăng ký JsonStringEnumConverter
 // nên mọi enum đi qua JSON dưới dạng số - giữ nguyên giá trị số ở đây để so sánh không lệch.
 
@@ -489,6 +491,8 @@ export interface ChatBootstrap {
   hubPath: string;
   attachment: ChatAttachmentRule;
   serverTimeUtc: string;
+  /** Thiếu ở chat service chưa có trợ lý; khi đó ẩn hẳn trợ lý. */
+  assistant?: AssistantAccess | null;
 }
 
 /** Kết quả `POST /api/chat/hub-ticket`: vé dùng một lần để mở kết nối hub. */

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import { configureChatWidget, type ChatWidgetConfig } from "../core/config";
+import { resetAssistant, useAssistant } from "../core/store/useAssistant";
 import { useChatStore } from "../core/store/useChatStore";
 import { setTabUnread, startTabAttention, stopTabAttention } from "../core/tabAttention";
 import {
@@ -132,8 +133,10 @@ const onVisibilityChange = () => {
 // Hai cửa sổ đặt cạnh nhau thì chuyển qua lại không đổi visibility, chỉ có focus.
 const onWindowFocus = () => syncWindows();
 
+const assistant = useAssistant();
+
 onMounted(() => {
-  init();
+  void init().then(() => assistant.refreshAccess());
   if (props.config.tabIndicator !== false) {
     startTabAttention();
     setTabUnread(tabUnread.value);
@@ -150,6 +153,7 @@ onBeforeUnmount(() => {
   stopTabAttention();
   // Chỉ component gốc dọn: các component con bị gỡ trong lúc widget còn sống thì không được đụng tới.
   dispose();
+  resetAssistant();
 });
 </script>
 
