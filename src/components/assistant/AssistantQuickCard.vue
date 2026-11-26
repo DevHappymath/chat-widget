@@ -8,6 +8,11 @@ const props = defineProps<{ card: AssistantCard }>();
 const KIND_ICON: Record<AssistantCardKind, string> = {
   lead: "UserRound",
   leads: "Users",
+  history: "History",
+  "lead-stats": "ChartColumn",
+  payments: "Receipt",
+  renewals: "RefreshCcw",
+  approvals: "ListChecks",
   student: "GraduationCap",
   students: "GraduationCap",
   commission: "Wallet",
