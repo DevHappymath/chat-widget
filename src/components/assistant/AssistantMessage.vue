@@ -11,7 +11,7 @@ import AssistantQuickCard from "./AssistantQuickCard.vue";
 
 const props = defineProps<{ message: AssistantMessage }>();
 
-const { setFeedback, askAssistantAbout, hasModels, isAsking } = useAssistant();
+const { setFeedback, askAssistantAbout, hasModels, isAsking, isLatestMessage, answerChoice } = useAssistant();
 const toast = useWidgetToast();
 
 const isUser = computed(() => props.message.role === "user");
@@ -19,6 +19,8 @@ const isStreaming = computed(() => props.message.state === "streaming");
 const isError = computed(() => props.message.state === "error");
 const cards = computed(() => props.message.cards ?? []);
 const isQuick = computed(() => props.message.source === "quick");
+const choices = computed(() => props.message.choices?.options ?? []);
+const canChoose = computed(() => isLatestMessage(props.message) && !isAsking.value);
 const html = computed(() => renderAssistantMarkdown(props.message.content));
 /** Đang tra dữ liệu, chưa có chữ nào để hiện. */
 const isThinking = computed(
@@ -98,6 +100,29 @@ const ACTION =
         :class="isStreaming && 'is-streaming'"
         v-html="html"
       />
+
+      <div
+        v-if="choices.length && !isStreaming && !isError"
+        class="mt-2 flex flex-wrap gap-1.5"
+        role="group"
+        aria-label="Chọn một câu trả lời"
+      >
+        <button
+          v-for="option in choices"
+          :key="option"
+          type="button"
+          class="inline-flex max-w-full items-center rounded-full border px-3 py-1.5 text-left text-sm transition-all"
+          :class="
+            canChoose
+              ? 'border-chat-accent/30 bg-chat-accent/5 text-chat-accent-strong hover:border-chat-accent-strong hover:bg-chat-accent/10 active:scale-[0.98]'
+              : 'cursor-default border-gray-200 text-gray-400'
+          "
+          :disabled="!canChoose"
+          @click="answerChoice(option)"
+        >
+          <span class="truncate">{{ option }}</span>
+        </button>
+      </div>
 
       <div v-if="message.citations.length" class="mt-2 flex flex-wrap gap-1.5">
         <component

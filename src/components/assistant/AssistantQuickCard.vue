@@ -2,8 +2,11 @@
 import { computed } from "vue";
 import type { AssistantCard, AssistantCardKind } from "../../types/assistant";
 import WidgetIcon from "../WidgetIcon.vue";
+import { useAssistant } from "../../core/store/useAssistant";
 
 const props = defineProps<{ card: AssistantCard }>();
+
+const { askFollowUp, isAsking } = useAssistant();
 
 const KIND_ICON: Record<AssistantCardKind, string> = {
   lead: "UserRound",
@@ -51,14 +54,14 @@ const icon = computed(() => KIND_ICON[props.card.kind] ?? "Search");
     </dl>
 
     <ul v-if="card.rows.length" class="divide-y divide-gray-100 border-t border-gray-100">
-      <li v-for="(row, index) in card.rows" :key="`${row.title}-${index}`">
+      <li v-for="(row, index) in card.rows" :key="`${row.title}-${index}`" class="flex items-center">
         <component
           :is="row.url ? 'a' : 'div'"
           :href="row.url ?? undefined"
           :target="row.url ? '_blank' : undefined"
           rel="noopener noreferrer"
-          class="group flex items-center gap-2.5 px-3 py-2"
-          :class="row.url && 'transition-colors hover:bg-gray-50'"
+          class="group flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-3"
+          :class="[row.url && 'transition-colors hover:bg-gray-50', row.followUp ? 'pr-1.5' : 'pr-3']"
         >
           <div class="min-w-0 flex-1">
             <p class="truncate text-sm font-medium text-gray-900">{{ row.title }}</p>
@@ -72,6 +75,17 @@ const icon = computed(() => KIND_ICON[props.card.kind] ?? "Search");
             class="text-gray-300 transition-colors group-hover:text-chat-accent-strong"
           />
         </component>
+        <button
+          v-if="row.followUp"
+          type="button"
+          class="mr-2 inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 px-2 py-1 text-xs font-medium text-gray-600 transition-all hover:border-chat-accent/40 hover:text-chat-accent-strong active:scale-[0.98] disabled:opacity-50"
+          :disabled="isAsking"
+          :title="row.followUp"
+          @click="askFollowUp(row.followUp)"
+        >
+          <WidgetIcon name="MessageCirclePlus" :size="12" />
+          Hỏi tiếp
+        </button>
       </li>
     </ul>
 

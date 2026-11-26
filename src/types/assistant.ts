@@ -54,6 +54,8 @@ export interface AssistantCardRow {
   subtitle?: string | null;
   meta?: string | null;
   url?: string | null;
+  /** Câu gửi tiếp khi bấm "Hỏi tiếp" trên dòng này, để chọn đúng một đối tượng trong danh sách. */
+  followUp?: string | null;
 }
 
 export interface AssistantCardLink {
@@ -88,6 +90,12 @@ export interface AssistantCard {
   links: AssistantCardLink[];
 }
 
+/** Trợ lý hỏi lại trước khi tra; bấm một lựa chọn là gửi đúng chữ đó làm câu hỏi tiếp theo. */
+export interface AssistantChoices {
+  question: string;
+  options: string[];
+}
+
 export type AssistantFeedback = "helpful" | "wrong";
 
 export interface AssistantMessage {
@@ -106,6 +114,7 @@ export interface AssistantMessage {
   /** "quick" khi trả lời bằng tra nhanh theo mẫu, không qua mô hình. */
   source?: "quick" | null;
   cards?: AssistantCard[];
+  choices?: AssistantChoices | null;
 }
 
 /** Một mô hình trả lời mà người hỏi được chọn; chỉ gồm mô hình admin đã thêm và có khoá dùng được. */

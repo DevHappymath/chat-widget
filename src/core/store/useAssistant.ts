@@ -319,6 +319,18 @@ export const useAssistant = () => {
     }
   };
 
+  /** Chỉ câu trả lời mới nhất mới bấm được lựa chọn; đã có câu hỏi sau thì lựa chọn cũ hết hiệu lực. */
+  const isLatestMessage = (message: AssistantMessage) => {
+    const list = messagesByThread.value[message.threadId] ?? [];
+    return list[list.length - 1]?.id === message.id;
+  };
+
+  /** Lựa chọn trả lời câu hỏi lại của mô hình: gửi thẳng cho mô hình để nó đọc tiếp ngữ cảnh, không tra nhanh. */
+  const answerChoice = (option: string) => ask(option, { preferAssistant: true });
+
+  /** Hỏi tiếp về một dòng trong thẻ danh sách; câu này đã đúng mẫu nên đi qua tra nhanh như câu gõ tay. */
+  const askFollowUp = (question: string) => ask(question);
+
   /** Hỏi lại đúng câu đã tra nhanh, lần này để mô hình trả lời kỹ hơn. */
   const askAssistantAbout = (message: AssistantMessage) => {
     const list = messagesByThread.value[message.threadId] ?? [];
@@ -375,6 +387,9 @@ export const useAssistant = () => {
     deleteThread,
     ask,
     askAssistantAbout,
+    isLatestMessage,
+    answerChoice,
+    askFollowUp,
     setFeedback,
     openSettings,
   };
