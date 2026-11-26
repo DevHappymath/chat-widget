@@ -79,12 +79,16 @@ const ACTION =
         <span class="gdtd-assistant-dot h-1.5 w-1.5 rounded-full bg-gray-400 [animation-delay:300ms]" />
       </div>
 
+      <div v-if="!isQuick && cards.length && !isError" class="mb-2 space-y-2">
+        <AssistantQuickCard v-for="(card, index) in cards" :key="index" :card="card" />
+      </div>
+
       <div v-if="isError" class="flex items-start gap-2 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">
         <WidgetIcon name="CircleAlert" :size="16" class="mt-0.5" />
         <span>{{ message.content || "Trợ lý chưa trả lời được câu này, bạn hỏi lại giúp nhé." }}</span>
       </div>
 
-      <div v-else-if="cards.length" class="space-y-2">
+      <div v-else-if="isQuick && cards.length" class="space-y-2">
         <AssistantQuickCard v-for="(card, index) in cards" :key="index" :card="card" />
       </div>
 
