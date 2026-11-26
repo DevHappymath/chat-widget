@@ -58,6 +58,8 @@ const writePickedModel = (value: AssistantModelChoice | null) => {
 };
 
 const modelList = ref<AssistantModelList>({ models: [], defaultModel: null });
+/** Đã nạp xong danh sách mô hình ít nhất một lần; để phân biệt "đang nạp" với "chưa có mô hình nào". */
+const isModelListLoaded = ref(false);
 /** Lựa chọn riêng của người hỏi, nhớ trong trình duyệt theo từng site; null là theo mặc định. */
 const pickedModel = ref<AssistantModelChoice | null>(readPickedModel());
 
@@ -89,6 +91,7 @@ export const resetAssistant = () => {
   messagesByThread.value = {};
   isAsking.value = false;
   modelList.value = { models: [], defaultModel: null };
+  isModelListLoaded.value = false;
 };
 
 export const useAssistant = () => {
@@ -134,6 +137,7 @@ export const useAssistant = () => {
   const loadModels = async () => {
     try {
       modelList.value = await api.getModels();
+      isModelListLoaded.value = true;
     } catch {
       // Không nạp được thì vẫn hỏi được, server tự dùng mô hình mặc định.
     }
@@ -357,6 +361,7 @@ export const useAssistant = () => {
     isLoadingMessages,
     isAsking,
     modelList,
+    isModelListLoaded,
     hasModels,
     activeModel,
     isDefaultModel,

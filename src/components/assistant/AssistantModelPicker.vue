@@ -4,7 +4,7 @@ import { useAssistant } from "../../core/store/useAssistant";
 import type { AssistantModelOption } from "../../types/assistant";
 import WidgetIcon from "../WidgetIcon.vue";
 
-const { modelList, activeModel, isDefaultModel, pickModel } = useAssistant();
+const { modelList, isModelListLoaded, activeModel, isDefaultModel, pickModel } = useAssistant();
 
 const isOpen = ref(false);
 
@@ -78,4 +78,12 @@ const choose = (option: AssistantModelOption) => {
       </div>
     </template>
   </div>
+  <span
+    v-else-if="isModelListLoaded"
+    class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-400"
+    title="Quản trị viên chưa thêm mô hình trả lời nào"
+  >
+    <WidgetIcon name="Sparkles" :size="13" />
+    Chưa có mô hình
+  </span>
 </template>
