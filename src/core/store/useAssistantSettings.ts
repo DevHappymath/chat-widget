@@ -106,7 +106,8 @@ export const useAssistantSettings = () => {
 
   const save = async () => {
     if (!form.value || isSaving.value) return false;
-    const needsReindex = embeddingChanged.value;
+    // Bỏ mô hình đọc tài liệu thì không đọc lại: không còn mô hình nào để đọc.
+    const needsReindex = embeddingChanged.value && Boolean(form.value.embeddingModel);
 
     isSaving.value = true;
     try {
