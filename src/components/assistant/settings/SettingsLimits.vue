@@ -60,7 +60,7 @@ const INPUT =
         <span class="min-w-0 flex-1">
           <span class="block text-sm font-semibold text-gray-900">Giữ lịch sử hỏi đáp</span>
           <span class="mt-0.5 block text-xs leading-relaxed text-gray-500">
-            Quá hạn thì cuộc hỏi cũ tự xoá, cả với người hỏi.
+            Quá hạn thì trao đổi cũ tự xoá, cả với người hỏi.
           </span>
         </span>
         <SettingSelect v-model="form.retentionDays" :options="RETENTION_OPTIONS" class="w-32 shrink-0" />

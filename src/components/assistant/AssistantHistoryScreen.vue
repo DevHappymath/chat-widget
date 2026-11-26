@@ -21,8 +21,8 @@ const groups = computed(() =>
 
 const onDelete = async (thread: AssistantThread) => {
   const agreed = await ask({
-    title: "Xoá cuộc hỏi",
-    message: `Xoá "${thread.title}"? Câu hỏi và câu trả lời trong cuộc này sẽ mất hẳn.`,
+    title: "Xoá trao đổi",
+    message: `Xoá "${thread.title}"? Câu hỏi và câu trả lời trong trao đổi này sẽ mất hẳn.`,
     confirmText: "Xoá",
     danger: true,
   });
@@ -42,14 +42,14 @@ onMounted(() => {
       @click="newThread"
     >
       <WidgetIcon name="SquarePen" :size="16" />
-      Cuộc hỏi mới
+      Trao đổi mới
     </button>
 
     <div v-if="isLoadingThreads && !threads.length" class="space-y-2 p-3">
       <span v-for="i in 5" :key="i" class="block h-4 animate-pulse rounded-full bg-gray-100" />
     </div>
 
-    <p v-else-if="!threads.length" class="px-3 py-10 text-center text-xs text-gray-500">Chưa có cuộc hỏi nào.</p>
+    <p v-else-if="!threads.length" class="px-3 py-10 text-center text-xs text-gray-500">Chưa có trao đổi nào.</p>
 
     <section v-for="group in groups" :key="group.label" class="mt-2">
       <p class="px-3 pb-1 text-[11px] font-medium tracking-wide text-gray-400 uppercase">{{ group.label }}</p>
@@ -66,7 +66,7 @@ onMounted(() => {
         <button
           type="button"
           class="mr-1.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-600 focus-visible:opacity-100 chat-touch:opacity-100"
-          :aria-label="`Xoá cuộc hỏi ${thread.title}`"
+          :aria-label="`Xoá trao đổi ${thread.title}`"
           @click="onDelete(thread)"
         >
           <WidgetIcon name="Trash2" :size="14" />

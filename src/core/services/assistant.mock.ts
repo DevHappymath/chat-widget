@@ -363,7 +363,7 @@ export const createAssistantMockGateway = (canManage: () => boolean): AssistantG
     const thread: AssistantThread = {
       id: `t-${uid()}`,
       app: app as AssistantThread["app"],
-      title: "Cuộc hỏi mới",
+      title: "Trao đổi mới",
       createdAtUtc: nowIso(),
       lastMessageAtUtc: nowIso(),
     };

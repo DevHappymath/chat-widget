@@ -51,7 +51,7 @@ const HEADINGS: Record<WidgetView, string> = {
   media: "Ảnh và tệp",
   join: "Tham gia nhóm",
   assistant: "Trợ lý GDTD",
-  "assistant-history": "Các cuộc hỏi trước",
+  "assistant-history": "Lịch sử trao đổi",
   "assistant-settings": "Cài đặt trợ lý",
 };
 
@@ -144,8 +144,8 @@ const subheading = computed(() => {
         <button
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
-          aria-label="Cuộc hỏi mới"
-          v-tooltip="'Cuộc hỏi mới'"
+          aria-label="Trao đổi mới"
+          v-tooltip="'Trao đổi mới'"
           @click="assistant.newThread"
         >
           <WidgetIcon name="SquarePen" :size="17" />
@@ -153,8 +153,8 @@ const subheading = computed(() => {
         <button
           type="button"
           class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
-          aria-label="Các cuộc hỏi trước"
-          v-tooltip="'Các cuộc hỏi trước'"
+          aria-label="Lịch sử trao đổi"
+          v-tooltip="'Lịch sử trao đổi'"
           @click="view = 'assistant-history'"
         >
           <WidgetIcon name="History" :size="17" />
