@@ -2,7 +2,7 @@
 import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, watch } from "vue";
 import { configureChatWidget, type ChatWidgetConfig } from "../core/config";
 import { resetAssistant, useAssistant } from "../core/store/useAssistant";
-import { useChatStore } from "../core/store/useChatStore";
+import { onReopenAssistant, useChatStore } from "../core/store/useChatStore";
 import { setTabUnread, startTabAttention, stopTabAttention } from "../core/tabAttention";
 import {
   lockPageScroll,
@@ -146,6 +146,8 @@ const onVisibilityChange = () => {
 const onWindowFocus = () => syncWindows();
 
 const assistant = useAssistant();
+// Đăng ký trước khi khởi động, vì lần đọc khung chat đầu tiên có thể đã phải mở lại trợ lý.
+onReopenAssistant(assistant.reopen);
 
 onMounted(() => {
   void init().then(() => assistant.refreshAccess());
@@ -165,6 +167,7 @@ onBeforeUnmount(() => {
   stopTabAttention();
   // Chỉ component gốc dọn: các component con bị gỡ trong lúc widget còn sống thì không được đụng tới.
   dispose();
+  onReopenAssistant(null);
   resetAssistant();
 });
 </script>

@@ -16,7 +16,7 @@ import type {
   AssistantThread,
 } from "../../types/assistant";
 import { extractErrorMessage } from "../../utils/error";
-import { useChatStore } from "./useChatStore";
+import { assistantThreadId, useChatStore } from "./useChatStore";
 import { useWidgetToast } from "./useWidgetToast";
 
 // ─── State: một bản duy nhất cho cả tab ───────────────────────────────────────
@@ -31,7 +31,7 @@ const threads = ref<AssistantThread[]>([]);
 const hasLoadedThreads = ref(false);
 const isLoadingThreads = ref(false);
 /** Null là cuộc hỏi mới chưa gửi câu nào; hội thoại chỉ được tạo khi gửi câu đầu. */
-const activeThreadId = ref<string | null>(null);
+const activeThreadId = assistantThreadId;
 const messagesByThread = ref<Record<string, AssistantMessage[]>>({});
 const isLoadingMessages = ref(false);
 const isAsking = ref(false);
@@ -165,13 +165,42 @@ export const useAssistant = () => {
     }
   };
 
-  /** Mở trợ lý ở khung chính, hội thoại đang mở nhường chỗ như khi mở một hội thoại khác. */
-  const open = async () => {
+  /**
+   * Nạp tin của một cuộc hỏi. `fresh` nạp lại cả khi đã có, vì câu hỏi gửi ở site khác không tự về
+   * tab này; đang chờ trả lời thì giữ bản đang có để không mất câu trả lời đang về.
+   */
+  const loadMessages = async (threadId: string, { fresh = false } = {}) => {
+    const cached = messagesByThread.value[threadId];
+    if (cached && (!fresh || isAsking.value)) return;
+
+    if (!cached) isLoadingMessages.value = true;
+    try {
+      const list = await api.getMessages(threadId);
+      messagesByThread.value = { ...messagesByThread.value, [threadId]: list };
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
+    } finally {
+      isLoadingMessages.value = false;
+    }
+  };
+
+  const show = async ({ fresh }: { fresh: boolean }) => {
     if (!canUse.value) return;
     await store.showAssistant();
     if (!hasLoadedThreads.value) void loadThreads();
     // Admin có thể vừa thêm hay gỡ mô hình, nạp lại mỗi lần mở cho danh sách luôn mới.
     void loadModels();
+    // Cuộc hỏi có thể do site khác chọn lúc trợ lý đang ẩn ở đây, nên chưa có tin.
+    if (activeThreadId.value) void loadMessages(activeThreadId.value, { fresh });
+  };
+
+  /** Mở trợ lý ở khung chính, hội thoại đang mở nhường chỗ như khi mở một hội thoại khác. */
+  const open = () => show({ fresh: false });
+
+  /** Mở lại đúng cuộc hỏi site khác đang mở. */
+  const reopen = (threadId: string | null) => {
+    activeThreadId.value = threadId;
+    return show({ fresh: true });
   };
 
   const newThread = () => {
@@ -182,17 +211,7 @@ export const useAssistant = () => {
   const selectThread = async (threadId: string) => {
     activeThreadId.value = threadId;
     store.view.value = "assistant";
-    if (messagesByThread.value[threadId]) return;
-
-    isLoadingMessages.value = true;
-    try {
-      const list = await api.getMessages(threadId);
-      messagesByThread.value = { ...messagesByThread.value, [threadId]: list };
-    } catch (err) {
-      toast.error(extractErrorMessage(err));
-    } finally {
-      isLoadingMessages.value = false;
-    }
+    await loadMessages(threadId);
   };
 
   const deleteThread = async (threadId: string) => {
@@ -401,6 +420,7 @@ export const useAssistant = () => {
     refreshAccess,
     loadThreads,
     open,
+    reopen,
     newThread,
     selectThread,
     deleteThread,

@@ -1,12 +1,17 @@
 const COOKIE_NAME = "gdtd_chat_windows";
 const MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-/** Các khung chat đang hiện: panel, khung chính, khung thứ hai và dãy avatar thu nhỏ. */
+/** Trợ lý đang chiếm khung chính, đang nằm thành bong bóng, hay không hiện. */
+export type AssistantPlacement = "main" | "bubble" | null;
+
+/** Các khung chat đang hiện: panel, khung chính, khung thứ hai, dãy avatar thu nhỏ và trợ lý. */
 export interface ChatWindows {
   isPanelOpen: boolean;
   mainId: string | null;
   sideId: string | null;
   minimizedIds: string[];
+  assistant: AssistantPlacement;
+  assistantThreadId: string | null;
 }
 
 export interface SharedChatWindows extends ChatWindows {
@@ -32,7 +37,14 @@ export const isSameWindows = (a: ChatWindows, b: ChatWindows) =>
   a.isPanelOpen === b.isPanelOpen &&
   a.mainId === b.mainId &&
   a.sideId === b.sideId &&
-  a.minimizedIds.join(",") === b.minimizedIds.join(",");
+  a.minimizedIds.join(",") === b.minimizedIds.join(",") &&
+  a.assistant === b.assistant &&
+  a.assistantThreadId === b.assistantThreadId;
+
+const PLACEMENT_CODES = { main: "m", bubble: "b" } as const;
+
+const placementOf = (code: string | undefined): AssistantPlacement =>
+  code === PLACEMENT_CODES.main ? "main" : code === PLACEMENT_CODES.bubble ? "bubble" : null;
 
 /**
  * Khung chat site khác vừa lưu. Trả `null` khi chưa có hoặc cookie là của tài khoản khác đăng
@@ -47,7 +59,8 @@ export const readSharedWindows = (userId: string): SharedChatWindows | null => {
     ?.slice(COOKIE_NAME.length + 1);
   if (!raw) return null;
 
-  const [owner, stamp, open, mainId, sideId, minimizedIds = ""] =
+  // Cookie do bản widget cũ ghi thì thiếu hai trường trợ lý, coi như trợ lý không hiện.
+  const [owner, stamp, open, mainId, sideId, minimizedIds = "", assistant, assistantThreadId] =
     decodeURIComponent(raw).split("|");
   if (owner !== userId || !stamp) return null;
 
@@ -57,6 +70,8 @@ export const readSharedWindows = (userId: string): SharedChatWindows | null => {
     mainId: mainId || null,
     sideId: sideId || null,
     minimizedIds: minimizedIds ? minimizedIds.split(",") : [],
+    assistant: placementOf(assistant),
+    assistantThreadId: assistantThreadId || null,
   };
 };
 
@@ -77,6 +92,8 @@ export const writeSharedWindows = (userId: string, windows: ChatWindows) => {
       windows.mainId ?? "",
       windows.sideId ?? "",
       windows.minimizedIds.join(","),
+      windows.assistant ? PLACEMENT_CODES[windows.assistant] : "",
+      windows.assistantThreadId ?? "",
     ].join("|"),
   );
   const attributes = [

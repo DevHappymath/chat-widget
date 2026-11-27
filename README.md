@@ -13,9 +13,10 @@ tiếp tin, kho ảnh và tệp của hội thoại. Chuông thông báo khi b�
 tin của mình, bấm vào là mở đúng tin đó. Thu nhỏ hội thoại đang mở thành avatar cạnh bong bóng
 để mở lại nhanh.
 
-Panel, các hội thoại đang mở và dãy avatar thu nhỏ đồng bộ giữa các site chung tên miền mẹ
-(cookie `gdtd_chat_windows`): chuyển trang hay chuyển sang site khác là thấy lại đúng các khung
-đang chat, đóng ở site này thì site kia cũng đóng khi quay lại.
+Panel, các hội thoại đang mở, dãy avatar thu nhỏ và trợ lý (đang mở hay đang là bong bóng, kèm
+cuộc hỏi đang xem) đồng bộ giữa các site chung tên miền mẹ (cookie `gdtd_chat_windows`): chuyển
+trang hay chuyển sang site khác là thấy lại đúng các khung đang chat, đóng ở site này thì site kia
+cũng đóng khi quay lại.
 
 Màn hình từ 900px trở lên mở được hai hội thoại cạnh nhau: đang chat ở khung chính mà mở thêm
 hội thoại từ avatar thì hội thoại mới hiện ở khung bên trái, khung đang chat đứng yên chỗ cũ; khung

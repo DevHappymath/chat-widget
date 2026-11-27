@@ -262,6 +262,16 @@ const minimizedSnapshots = ref<ChatConversation[]>([]);
 const isAssistantMinimized = ref(false);
 /** Số câu trả lời của trợ lý về lúc người dùng không nhìn màn trợ lý. */
 const assistantUnread = ref(0);
+/**
+ * Cuộc hỏi trợ lý đang mở; null là cuộc hỏi mới chưa gửi câu nào. Nằm ở đây để site khác cùng
+ * tên miền mở lại đúng cuộc hỏi đó.
+ */
+export const assistantThreadId = ref<string | null>(null);
+/** Trợ lý tự nạp lịch sử hỏi đáp nên tự lo việc mở lại; store chỉ báo site khác đang mở cuộc hỏi nào. */
+let reopenAssistant: ((threadId: string | null) => Promise<void>) | null = null;
+export const onReopenAssistant = (handler: typeof reopenAssistant) => {
+  reopenAssistant = handler;
+};
 
 const isLoadingConversations = ref(false);
 const loadingMessagesByConversation = ref<Record<string, boolean>>({});
@@ -350,6 +360,7 @@ const resetState = () => {
   minimizedSnapshots.value = [];
   isAssistantMinimized.value = false;
   assistantUnread.value = 0;
+  assistantThreadId.value = null;
   isLoadingConversations.value = false;
   loadingMessagesByConversation.value = {};
   loadingNewerByConversation.value = {};
@@ -2326,6 +2337,13 @@ export const useChatStore = () => {
     mainId: isPanelOpen.value ? activeConversationId.value : null,
     sideId: isPanelOpen.value ? sideConversationId.value : null,
     minimizedIds: minimizedSnapshots.value.map((c) => c.id),
+    assistant:
+      isPanelOpen.value && isAssistantView(view.value)
+        ? "main"
+        : isAssistantMinimized.value
+          ? "bubble"
+          : null,
+    assistantThreadId: assistantThreadId.value,
   });
 
   /**
@@ -2379,11 +2397,17 @@ export const useChatStore = () => {
    * chưa đọc và tin đang trả lời; chỉ hội thoại mới hiện ra mới phải tải.
    */
   const applySharedWindows = async (shared: SharedChatWindows) => {
+    // Rời màn trợ lý trước, kẻo các bước dưới tưởng trợ lý đang nhường chỗ mà thu nó thành bong bóng.
+    if (isAssistantView(view.value) && (!shared.isPanelOpen || shared.assistant !== "main")) {
+      view.value = "list";
+    }
+
     if (!shared.isPanelOpen) {
       if (sideConversationId.value) leaveSide(sideConversationId.value, { minimize: false });
       if (activeConversationId.value) backToList();
       if (isPanelOpen.value) closePanel();
       await applySharedMinimized(shared.minimizedIds);
+      await applySharedAssistant(shared);
       return;
     }
 
@@ -2422,6 +2446,25 @@ export const useChatStore = () => {
 
     await applySharedMinimized(shared.minimizedIds);
     if (side && !sideTarget) keepMinimized(side);
+    await applySharedAssistant(shared);
+  };
+
+  /** Trợ lý theo site khác: hiện ở khung chính, nằm thành bong bóng hay không hiện. */
+  const applySharedAssistant = async (shared: SharedChatWindows) => {
+    const isMain = shared.isPanelOpen && shared.assistant === "main";
+    const isShownHere = isPanelOpen.value && isAssistantView(view.value);
+
+    if (isMain && (!isShownHere || assistantThreadId.value !== shared.assistantThreadId)) {
+      if (reopenAssistant) await reopenAssistant(shared.assistantThreadId);
+      else {
+        assistantThreadId.value = shared.assistantThreadId;
+        await showAssistant();
+      }
+    } else if (!isMain) {
+      assistantThreadId.value = shared.assistantThreadId;
+    }
+
+    isAssistantMinimized.value = shared.assistant === "bubble";
   };
 
   const pullSharedWindows = async () => {
