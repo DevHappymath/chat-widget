@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useAssistant } from "../core/store/useAssistant";
 import { useChatStore } from "../core/store/useChatStore";
+import AssistantAvatar from "./assistant/AssistantAvatar.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -14,7 +16,11 @@ const {
   statusOf,
   partnerOf,
   titleOf,
+  isAssistantMinimized,
+  assistantUnread,
+  dismissAssistantBubble,
 } = useChatStore();
+const assistant = useAssistant();
 
 // Xếp ngay trên bong bóng (3.5rem) và canh giữa theo nó: avatar rộng 2.75rem nên lùi vào 0.375rem.
 const anchorClass = computed(() =>
@@ -47,6 +53,43 @@ const unreadLabel = (count: number) => (count > 9 ? "9+" : `${count}`);
       leave-to-class="scale-90 opacity-0"
       move-class="transition-transform duration-200"
     >
+      <!-- Trợ lý nằm sát bong bóng nhất, không bị hội thoại thu nhỏ sau đẩy lên. -->
+      <li v-if="isAssistantMinimized" key="assistant" class="group pointer-events-auto relative">
+        <button
+          type="button"
+          class="block rounded-full transition-transform hover:scale-105 active:scale-95"
+          aria-label="Mở lại Trợ lý GDTD"
+          @click="assistant.open()"
+        >
+          <AssistantAvatar size="md" />
+        </button>
+
+        <span
+          v-if="assistantUnread > 0"
+          class="pointer-events-none absolute -right-1 -bottom-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[11px] font-bold tabular-nums text-white ring-2 ring-white"
+          :aria-label="`${assistantUnread} câu trả lời chưa xem`"
+        >
+          {{ unreadLabel(assistantUnread) }}
+        </span>
+
+        <span
+          class="pointer-events-none absolute top-1/2 max-w-52 -translate-y-1/2 truncate whitespace-nowrap rounded-lg bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100"
+          :class="labelClass"
+        >
+          Trợ lý GDTD
+        </span>
+
+        <button
+          type="button"
+          class="absolute inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-gray-600 opacity-0 shadow ring-1 ring-gray-900/10 transition-opacity hover:text-gray-900 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+          :class="dismissClass"
+          aria-label="Bỏ Trợ lý GDTD khỏi danh sách thu nhỏ"
+          @click="dismissAssistantBubble"
+        >
+          <WidgetIcon name="X" :size="12" />
+        </button>
+      </li>
+
       <li
         v-for="conversation in minimizedConversations"
         :key="conversation.id"

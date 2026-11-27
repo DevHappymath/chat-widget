@@ -37,6 +37,8 @@ const {
   goBack,
   minimizeConversation,
   closeConversation,
+  minimizeAssistant,
+  closeAssistant,
 } = useChatStore();
 
 const HEADINGS: Record<WidgetView, string> = {
@@ -172,7 +174,18 @@ const subheading = computed(() => {
       </template>
 
       <button
-        v-if="view === 'thread' && activeConversation"
+        v-if="isAssistantView"
+        type="button"
+        class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
+        aria-label="Thu nhỏ trợ lý"
+        v-tooltip="'Thu nhỏ trợ lý'"
+        @click="minimizeAssistant"
+      >
+        <WidgetIcon name="Minus" :size="18" />
+      </button>
+
+      <button
+        v-else-if="view === 'thread' && activeConversation"
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
         aria-label="Thu nhỏ hội thoại"
@@ -186,7 +199,7 @@ const subheading = computed(() => {
         type="button"
         class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white"
         aria-label="Đóng khung chat"
-        @click="closeConversation"
+        @click="isAssistantView ? closeAssistant() : closeConversation()"
       >
         <WidgetIcon name="X" :size="18" />
       </button>

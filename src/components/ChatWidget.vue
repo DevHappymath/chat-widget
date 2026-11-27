@@ -43,6 +43,8 @@ const {
   isAtBottom,
   minimizedConversations,
   syncWindows,
+  isAssistantMinimized,
+  markAssistantSeen,
 } = useChatStore();
 
 const isWide = useIsWideViewport();
@@ -107,6 +109,16 @@ const badgeLabel = computed(() => (badgeCount.value > 99 ? "99+" : `${badgeCount
 const onKeydown = (event: KeyboardEvent) => {
   if (event.key === "Escape" && isPanelOpen.value) collapseAll();
 };
+
+const stackedHeads = computed(
+  () => minimizedConversations.value.length + (isAssistantMinimized.value ? 1 : 0),
+);
+
+// Quay lại màn trợ lý bằng đường nào (lịch sử, nút quay lại...) cũng là đã xem câu trả lời.
+watch(
+  () => isPanelOpen.value && view.value === "assistant",
+  (isSeen) => isSeen && markAssistantSeen(),
+);
 
 const tabUnread = computed(() => (canUseChat.value ? unreadMessageCount.value : 0));
 watch(tabUnread, (count) => setTabUnread(count));
@@ -200,7 +212,7 @@ onBeforeUnmount(() => {
       <MessageAlerts
         v-if="!isPanelOpen"
         :side="isLeft ? 'left' : 'right'"
-        :stacked-heads="minimizedConversations.length"
+        :stacked-heads="stackedHeads"
         :launcher-hidden="isLauncherHidden"
       />
 

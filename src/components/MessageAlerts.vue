@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useAssistant } from "../core/store/useAssistant";
 import { useChatStore } from "../core/store/useChatStore";
-import { useMessageAlerts } from "../core/store/useMessageAlerts";
+import { useMessageAlerts, type MessageAlert } from "../core/store/useMessageAlerts";
+import AssistantAvatar from "./assistant/AssistantAvatar.vue";
 import WidgetAvatar from "./WidgetAvatar.vue";
 import WidgetIcon from "./WidgetIcon.vue";
 
@@ -18,6 +20,7 @@ const props = withDefaults(
 
 const { openPanel, selectConversation } = useChatStore();
 const { alerts, dismiss, pause, resume } = useMessageAlerts();
+const assistant = useAssistant();
 
 const anchorClass = computed(() =>
   props.side === "left"
@@ -31,10 +34,14 @@ const anchorVars = computed(() => ({
   "--gdtd-chat-stack": props.launcherHidden ? "0rem" : `${4.25 + props.stackedHeads * 3.25}rem`,
 }));
 
-const open = async (conversationId: string) => {
+const open = async (alert: MessageAlert) => {
   window.focus();
+  if (alert.isAssistant) {
+    await assistant.open();
+    return;
+  }
   await openPanel();
-  await selectConversation(conversationId);
+  await selectConversation(alert.conversationId);
 };
 </script>
 
@@ -64,9 +71,11 @@ const open = async (conversationId: string) => {
         <button
           type="button"
           class="flex min-w-0 flex-1 items-start gap-3 text-left"
-          @click="open(alert.conversationId)"
+          @click="open(alert)"
         >
+          <AssistantAvatar v-if="alert.isAssistant" size="md" />
           <WidgetAvatar
+            v-else
             :name="alert.title"
             :variant="alert.isGroup ? 'group' : 'user'"
             :src="alert.avatarUrl"
@@ -84,7 +93,7 @@ const open = async (conversationId: string) => {
               v-if="alert.count > 1"
               class="mt-1 block text-xs font-medium text-chat-accent-strong"
             >
-              {{ alert.count }} tin nhắn mới
+              {{ alert.count }} {{ alert.isAssistant ? "câu trả lời mới" : "tin nhắn mới" }}
             </span>
           </span>
         </button>

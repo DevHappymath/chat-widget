@@ -129,6 +129,12 @@ export type WidgetView =
   | "assistant-history"
   | "assistant-settings";
 
+/** Mọi màn của trợ lý; trợ lý chỉ ở khung chính nên rời khung là thu thành bong bóng. */
+export const isAssistantView = (value: WidgetView) => value.startsWith("assistant");
+
+/** Khoá riêng cho thẻ báo trợ lý đã trả lời, không trùng được với id hội thoại (guid). */
+export const ASSISTANT_ALERT_ID = "assistant";
+
 /** Mỗi màn chỉ có đúng một màn cha, đủ để nút quay lại không cần giữ ngăn xếp. */
 const PARENT_VIEW: Record<WidgetView, WidgetView> = {
   list: "list",
@@ -252,6 +258,10 @@ const isPanelOpen = ref(false);
 const view = ref<WidgetView>("list");
 /** Bản chụp lúc thu nhỏ, giữ được avatar kể cả khi danh sách đang lọc theo từ khoá. */
 const minimizedSnapshots = ref<ChatConversation[]>([]);
+/** Trợ lý đang nằm thành bong bóng trong dãy avatar thu nhỏ. */
+const isAssistantMinimized = ref(false);
+/** Số câu trả lời của trợ lý về lúc người dùng không nhìn màn trợ lý. */
+const assistantUnread = ref(0);
 
 const isLoadingConversations = ref(false);
 const loadingMessagesByConversation = ref<Record<string, boolean>>({});
@@ -338,6 +348,8 @@ const resetState = () => {
   isPanelOpen.value = false;
   view.value = "list";
   minimizedSnapshots.value = [];
+  isAssistantMinimized.value = false;
+  assistantUnread.value = 0;
   isLoadingConversations.value = false;
   loadingMessagesByConversation.value = {};
   loadingNewerByConversation.value = {};
@@ -598,17 +610,19 @@ export const useChatStore = () => {
   const replyingToOf = (conversationId: string | null) =>
     conversationId ? (replyingByConversation.value[conversationId] ?? null) : null;
 
-  const badgeCount = computed(() =>
-    conversationsLoaded.value
-      ? conversations.value.filter((c) => c.unreadCount > 0).length
-      : unreadFallback.value,
+  const badgeCount = computed(
+    () =>
+      (conversationsLoaded.value
+        ? conversations.value.filter((c) => c.unreadCount > 0).length
+        : unreadFallback.value) + (assistantUnread.value > 0 ? 1 : 0),
   );
 
   /** Số hiện trên tiêu đề tab; bong bóng đếm hội thoại còn tab đếm tin như các app chat khác. */
-  const unreadMessageCount = computed(() =>
-    conversationsLoaded.value
-      ? conversations.value.reduce((sum, c) => sum + c.unreadCount, 0)
-      : unreadMessagesFallback.value,
+  const unreadMessageCount = computed(
+    () =>
+      (conversationsLoaded.value
+        ? conversations.value.reduce((sum, c) => sum + c.unreadCount, 0)
+        : unreadMessagesFallback.value) + assistantUnread.value,
   );
 
   // Một timer duy nhất đặt theo mốc hết hạn sớm nhất, và chỉ gán lại mảng khi thật sự có mục hết hạn.
@@ -1086,7 +1100,7 @@ export const useChatStore = () => {
    * Hội thoại đang ở khung chính nhường chỗ cho hội thoại sắp mở: lùi sang khung thứ hai nếu đủ
    * chỗ, khung thứ hai có sẵn hội thoại khác thì cái đó thu thành avatar.
    */
-  const makeRoomInMain = (incomingId: string) => {
+  const makeRoomInMain = (incomingId: string | null) => {
     const current = activeConversation.value;
     if (!isPanelOpen.value || !current || current.id === incomingId) return;
 
@@ -1125,6 +1139,8 @@ export const useChatStore = () => {
    * @param wasOpen hội thoại đã hiện ở một trong hai khung trước khi dời chỗ.
    */
   const showInMain = async (id: string, wasOpen: boolean) => {
+    // Trợ lý không lùi sang khung thứ hai được, nhường khung chính thì thu thành bong bóng.
+    if (isPanelOpen.value && isAssistantView(view.value)) isAssistantMinimized.value = true;
     if (sideConversationId.value === id) sideConversationId.value = null;
     // Đang hiện thành khung thì không còn là avatar thu nhỏ nữa.
     dismissMinimized(id);
@@ -2210,6 +2226,11 @@ export const useChatStore = () => {
   };
 
   const closePanel = () => {
+    // Gập panel lúc đang ở trợ lý thì trợ lý thành bong bóng như hội thoại; mở lại panel là về danh sách.
+    if (isAssistantView(view.value)) {
+      isAssistantMinimized.value = true;
+      view.value = "list";
+    }
     isPanelOpen.value = false;
     closeMessageActions();
   };
@@ -2437,7 +2458,8 @@ export const useChatStore = () => {
     if (!isPanelOpen.value) await openPanel();
 
     const mainId = activeConversationId.value;
-    if (mainId && mainId !== conversationId && fitsTwoWindows.value) {
+    const isMainBusy = (mainId && mainId !== conversationId) || isAssistantView(view.value);
+    if (isMainBusy && fitsTwoWindows.value) {
       await openBesideMain(conversationId);
       return;
     }
@@ -2445,7 +2467,84 @@ export const useChatStore = () => {
     await selectConversation(conversationId);
   };
 
+  // ─── Trợ lý ở khung chính ───────────────────────────────────────────────────
+
+  /**
+   * Đưa trợ lý vào khung chính như mở một hội thoại: hội thoại đang chiếm chỗ lùi sang khung thứ
+   * hai nếu đủ chỗ, không thì thu thành avatar. Bên gọi tự đặt màn trợ lý cần hiện.
+   */
+  const showAssistant = async () => {
+    if (!isPanelOpen.value) await openPanel();
+
+    makeRoomInMain(null);
+    draft.value = null;
+    resetMessageSearch();
+    resetMedia();
+    activeConversationId.value = null;
+    isAssistantMinimized.value = false;
+    markAssistantSeen();
+    view.value = "assistant";
+  };
+
+  /** Trợ lý rời khung chính; hội thoại ở khung thứ hai dời sang thế chỗ, không có thì gập panel. */
+  const leaveAssistant = ({ minimize }: { minimize: boolean }) => {
+    isAssistantMinimized.value = minimize;
+    if (!minimize) markAssistantSeen();
+    view.value = "list";
+
+    const sideId = sideConversationId.value;
+    if (sideId) {
+      void moveToMain(sideId);
+      return;
+    }
+    closePanel();
+  };
+
+  const minimizeAssistant = () => leaveAssistant({ minimize: true });
+  const closeAssistant = () => leaveAssistant({ minimize: false });
+
+  const dismissAssistantBubble = () => {
+    isAssistantMinimized.value = false;
+    markAssistantSeen();
+  };
+
+  function markAssistantSeen() {
+    assistantUnread.value = 0;
+    messageAlerts.dismiss(ASSISTANT_ALERT_ID);
+  }
+
+  /**
+   * Trợ lý vừa trả lời xong. Người dùng không nhìn màn trợ lý thì báo như tin nhắn mới: số chưa đọc,
+   * nhấp nháy tiêu đề tab, thẻ nổi khi panel đóng; đã đóng hẳn trợ lý thì nó hiện lại thành bong bóng.
+   */
+  const noteAssistantReply = (preview: string) => {
+    const isOnScreen = isPanelOpen.value && view.value === "assistant";
+    announceTabMessage();
+    if (isOnScreen) return;
+
+    assistantUnread.value += 1;
+    if (!isAssistantView(view.value) || !isPanelOpen.value) isAssistantMinimized.value = true;
+    if (isPanelOpen.value) return;
+
+    messageAlerts.push({
+      conversationId: ASSISTANT_ALERT_ID,
+      title: "Trợ lý GDTD",
+      isGroup: false,
+      isAssistant: true,
+      preview,
+    });
+  };
+
   return {
+    // trợ lý
+    isAssistantMinimized,
+    assistantUnread,
+    showAssistant,
+    minimizeAssistant,
+    closeAssistant,
+    dismissAssistantBubble,
+    markAssistantSeen,
+    noteAssistantReply,
     // bootstrap
     bootstrap,
     isBooting,

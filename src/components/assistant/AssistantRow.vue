@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useAssistant } from "../../core/store/useAssistant";
+import { useChatStore } from "../../core/store/useChatStore";
 import AssistantAvatar from "./AssistantAvatar.vue";
 
 const { access, threads, open } = useAssistant();
+const { assistantUnread } = useChatStore();
+const isUnread = computed(() => assistantUnread.value > 0);
 
 const subtitle = computed(() => {
   if (!access.value.isEnabled) return "Đang tắt, chỉ quản trị viên thấy";
@@ -30,7 +33,20 @@ const subtitle = computed(() => {
             Đang tắt
           </span>
         </span>
-        <span class="mt-0.5 block truncate text-xs text-gray-500">{{ subtitle }}</span>
+        <span
+          class="mt-0.5 block truncate text-xs"
+          :class="isUnread ? 'font-medium text-gray-900' : 'text-gray-500'"
+        >
+          {{ isUnread ? "Đã trả lời, bấm để xem" : subtitle }}
+        </span>
+      </span>
+
+      <span
+        v-if="isUnread"
+        class="inline-flex h-4.5 min-w-4.5 shrink-0 items-center justify-center rounded-full bg-chat-accent-strong px-1 text-[11px] font-semibold tabular-nums text-white"
+        :aria-label="`${assistantUnread} câu trả lời chưa xem`"
+      >
+        {{ assistantUnread }}
       </span>
     </button>
   </div>

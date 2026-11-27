@@ -165,9 +165,10 @@ export const useAssistant = () => {
     }
   };
 
-  const open = () => {
+  /** Mở trợ lý ở khung chính, hội thoại đang mở nhường chỗ như khi mở một hội thoại khác. */
+  const open = async () => {
     if (!canUse.value) return;
-    store.view.value = "assistant";
+    await store.showAssistant();
     if (!hasLoadedThreads.value) void loadThreads();
     // Admin có thể vừa thêm hay gỡ mô hình, nạp lại mỗi lần mở cho danh sách luôn mới.
     void loadModels();
@@ -222,6 +223,22 @@ export const useAssistant = () => {
     steps.some((s) => s.id === step.id)
       ? steps.map((s) => (s.id === step.id ? step : s))
       : [...steps, step];
+
+  /** Câu ngắn cho thẻ báo: bỏ dấu markdown, lấy dòng có chữ đầu tiên. */
+  const replyPreview = (message: AssistantMessage) => {
+    if (message.state === "error") return "Chưa trả lời được câu vừa hỏi, mở để xem lý do";
+    if (message.choices) return message.choices.question;
+    const line = message.content
+      .split("\n")
+      .map((l) => l.replace(/[*#`|>]/g, "").replace(/^\s*(?:[-•]|\d+[.)])\s+/, "").trim())
+      .find(Boolean);
+    return line || "Đã có kết quả tra cứu";
+  };
+
+  const notifyReply = (threadId: string, messageId: string) => {
+    const message = (messagesByThread.value[threadId] ?? []).find((m) => m.id === messageId);
+    if (message) store.noteAssistantReply(replyPreview(message));
+  };
 
   /** `preferAssistant` bỏ qua tra nhanh, dùng cho nút "Hỏi trợ lý thêm" dưới thẻ tra nhanh. */
   const ask = async (content: string, options: { preferAssistant?: boolean } = {}) => {
@@ -296,6 +313,7 @@ export const useAssistant = () => {
         },
       );
       patchMessage(id, placeholderId, () => answer);
+      notifyReply(id, answer.id);
 
       // Câu đầu tiên đặt tên cho cuộc hỏi ở phía server, nạp lại để danh sách có tên mới.
       const thread = threads.value.find((t) => t.id === id);
@@ -313,6 +331,7 @@ export const useAssistant = () => {
         state: "error",
         content: m.content || extractErrorMessage(err),
       }));
+      notifyReply(id, placeholderId);
       return false;
     } finally {
       isAsking.value = false;

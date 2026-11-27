@@ -5,6 +5,8 @@ export interface MessageAlert {
   title: string;
   avatarUrl?: string | null;
   isGroup: boolean;
+  /** Thẻ báo trợ lý đã trả lời, bấm vào thì mở trợ lý thay vì hội thoại. */
+  isAssistant?: boolean;
   preview: string;
   /** Số tin dồn vào thẻ này kể từ lúc nó hiện ra. */
   count: number;
